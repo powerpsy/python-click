@@ -13,9 +13,25 @@
 title: Le grand hall
 desc: Vous êtes dans un hall faiblement éclairé. Une porte en bois se dresse au nord. Une table en bois occupe le centre, et il y a une clé posée dessus.
 objects:
-  porte: Porte en bois
-  table: Table ancienne
-  clef: Petite clé en laiton
+  x0001. door: Porte en bois
+  x0002. table: Table ancienne
+  x0003. key: Petite clé en laiton
+
+# Object properties and initial states
+object_properties:
+  x0001:
+    type: door
+    position: (500, 300)
+    locked: true
+    key_required: x0003
+  x0002:
+    type: table
+    position: (300, 350)
+    items_on_top: [x0003]
+  x0003:
+    type: key
+    position: (300, 320)
+    description: laiton
 
 # Actions pour les objets (format objet.action: résultat texte)
 porte.Open: La porte grince et s'ouvre, révélant un couloir sombre.

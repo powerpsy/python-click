@@ -1,6 +1,7 @@
 import sys
 import os
 import pygame
+from objects import create_object, get_object, get_all_objects
 
 # Window
 WIDTH, HEIGHT = 800, 600
@@ -35,9 +36,9 @@ ACTION_VERBS = [
 ]
 
 def parse_script(path: str):
-    """Parse a simple script.txt format into scenes.
+    """Parse a simple script.txt format into scenes with object-oriented objects.
 
-    Returns dict scenes[id] = {title, desc, objects: {id:name}, actions: {"obj.Action": result}}
+    Returns dict scenes[id] = {title, desc, objects: {id: GameObject}, actions: {"obj.Action": result}}
     """
     scenes = {}
     if not os.path.exists(path):
@@ -47,6 +48,9 @@ def parse_script(path: str):
         lines = [l.rstrip('\n') for l in f]
 
     cur = None
+    parsing_objects = False
+    parsing_properties = False
+
     i = 0
     while i < len(lines):
         line = lines[i].strip()
@@ -54,6 +58,8 @@ def parse_script(path: str):
             sid = line[3:].strip()
             cur = {'title': '', 'desc': '', 'objects': {}, 'actions': {}}
             scenes[sid] = cur
+            parsing_objects = False
+            parsing_properties = False
             i += 1
             continue
 
@@ -66,16 +72,66 @@ def parse_script(path: str):
         elif line.startswith('desc:'):
             cur['desc'] = line.split(':', 1)[1].strip()
         elif line.startswith('objects:'):
-            # read following indented object lines
+            parsing_objects = True
+            parsing_properties = False
             i += 1
-            while i < len(lines) and lines[i].startswith('  '):
-                ol = lines[i].strip()
-                if ':' in ol:
-                    oid, name = ol.split(':', 1)
-                    cur['objects'][oid.strip()] = name.strip()
-                i += 1
             continue
-        elif '.' in line and ':' in line:
+        elif line.startswith('object_properties:'):
+            parsing_objects = False
+            parsing_properties = True
+            i += 1
+            continue
+        elif parsing_objects and '.' in line and ':' in line:
+            # Parse object definition: x0001. door: Porte en bois
+            num_part, rest = line.split('.', 1)
+            obj_id = num_part.strip()
+            obj_type, name = rest.split(':', 1)
+            obj_type = obj_type.strip()
+            name = name.strip()
+
+            # Create the object with basic properties
+            obj = create_object(obj_type, obj_id, name)
+            cur['objects'][obj_id] = obj
+        elif parsing_properties and line.startswith('  ') and not ':' in line:
+            # Start of object properties block
+            obj_id = line.strip()
+            if obj_id in cur['objects']:
+                obj = cur['objects'][obj_id]
+                # Parse the following indented properties
+                i += 1
+                while i < len(lines) and lines[i].startswith('    '):
+                    prop_line = lines[i].strip()
+                    if ':' in prop_line:
+                        prop_name, prop_value = prop_line.split(':', 1)
+                        prop_name = prop_name.strip()
+                        prop_value = prop_value.strip()
+
+                        if prop_name == 'type':
+                            # Type already set during object creation
+                            pass
+                        elif prop_name == 'position':
+                            # Parse position tuple
+                            if prop_value.startswith('(') and prop_value.endswith(')'):
+                                coords = prop_value[1:-1].split(',')
+                                obj.position = (int(coords[0].strip()), int(coords[1].strip()))
+                        elif prop_name == 'locked':
+                            if hasattr(obj, 'locked'):
+                                obj.locked = prop_value.lower() == 'true'
+                        elif prop_name == 'key_required':
+                            if hasattr(obj, 'key_required'):
+                                obj.key_required = prop_value
+                        elif prop_name == 'items_on_top':
+                            if hasattr(obj, 'items_on_top'):
+                                # Parse list of items
+                                if prop_value.startswith('[') and prop_value.endswith(']'):
+                                    items_str = prop_value[1:-1]
+                                    if items_str:
+                                        obj.items_on_top = [item.strip().strip("'\"") for item in items_str.split(',')]
+                        elif prop_name == 'description':
+                            obj.description = prop_value
+                    i += 1
+                continue
+        elif '.' in line and ':' in line and not parsing_objects and not parsing_properties:
             # action line: object.Action [requires: id1,id2]: result
             left, right = line.split(':', 1)
             left = left.strip()
@@ -101,6 +157,57 @@ def draw_layout(surface, fonts, state):
     # Backgrounds
     surface.fill((30, 30, 30))
     pygame.draw.rect(surface, (50, 80, 120), SCENE_RECT)  # scene
+
+    # Draw scene objects as simple sprites
+    scene = state.get('current_scene_obj')
+    if scene:
+        # Define default positions for objects
+        default_positions = {
+            'x0001': (SCENE_RECT.centerx + 100, SCENE_RECT.centery - 50),  # door
+            'x0002': (SCENE_RECT.centerx - 100, SCENE_RECT.centery),      # table
+            'x0003': (SCENE_RECT.centerx - 50, SCENE_RECT.centery - 50),  # key
+        }
+        
+        state['_scene_sprite_rects'] = {}
+        for obj_id, obj in scene.get('objects', {}).items():
+            if obj.visible:
+                x, y = obj.position if obj.position else default_positions.get(obj_id, (SCENE_RECT.centerx, SCENE_RECT.centery))
+                
+                if obj_id == 'x0001':  # door
+                    # Draw door as rectangle with knob
+                    door_width, door_height = 60, 100
+                    rect = pygame.Rect(x - door_width//2, y - door_height//2, door_width, door_height)
+                    pygame.draw.rect(surface, (160, 82, 45), (x - door_width//2, y - door_height//2, door_width, door_height))
+                    # Knob
+                    pygame.draw.circle(surface, (255, 215, 0), (x + door_width//2 - 10, y), 5)
+                    # Draw ID above only if option is enabled
+                    if state.get('show_object_ids', True):
+                        id_label = fonts['small'].render(obj_id, True, (255, 255, 255))
+                        surface.blit(id_label, (x - id_label.get_width()//2, y - door_height//2 - 20))
+                elif obj_id == 'x0002':  # table
+                    # Draw table as brown rectangle with legs
+                    table_width, table_height = 80, 40
+                    rect = pygame.Rect(x - table_width//2, y - table_height//2, table_width, table_height + 20)  # include legs
+                    pygame.draw.rect(surface, (139, 69, 19), (x - table_width//2, y - table_height//2, table_width, table_height))
+                    # Legs
+                    leg_height = 20
+                    pygame.draw.rect(surface, (101, 67, 33), (x - table_width//2 + 5, y + table_height//2, 5, leg_height))
+                    pygame.draw.rect(surface, (101, 67, 33), (x + table_width//2 - 10, y + table_height//2, 5, leg_height))
+                    # Draw ID above only if option is enabled
+                    if state.get('show_object_ids', True):
+                        id_label = fonts['small'].render(obj_id, True, (255, 255, 255))
+                        surface.blit(id_label, (x - id_label.get_width()//2, y - table_height//2 - 20))
+                elif obj_id == 'x0003':  # key
+                    # Draw key as simple shape
+                    rect = pygame.Rect(x - 10, y - 5, 35, 10)
+                    pygame.draw.rect(surface, (255, 215, 0), (x - 10, y - 5, 20, 10))  # key head
+                    pygame.draw.rect(surface, (192, 192, 192), (x + 10, y - 2, 15, 4))  # key shaft
+                    pygame.draw.rect(surface, (192, 192, 192), (x + 20, y - 5, 4, 10))  # key teeth
+                    # Draw ID above only if option is enabled
+                    if state.get('show_object_ids', True):
+                        id_label = fonts['small'].render(obj_id, True, (255, 255, 255))
+                        surface.blit(id_label, (x - id_label.get_width()//2, y - 15))
+                state['_scene_sprite_rects'][obj_id] = rect
 
     # Bottom panels
     # status line
@@ -144,21 +251,22 @@ def draw_layout(surface, fonts, state):
 
     # Scene text and clickable object list (left column of scene)
     sx, sy = SCENE_RECT.x + 8, SCENE_RECT.y + 8
-    scene = state.get('current_scene_obj')
     if scene:
         surface.blit(fonts['large'].render(scene.get('title', ''), True, (240, 240, 240)), (sx, sy))
         surface.blit(fonts['small'].render(scene.get('desc', ''), True, (220, 220, 220)), (sx, sy + 36))
 
-        # list objects
-        obj_y = sy + 64
-        state['_scene_object_rects'] = {}
-        for oid, name in scene.get('objects', {}).items():
-            orect = pygame.Rect(sx, obj_y, 220, 22)
-            color = (120, 120, 90) if state.get('selected_object') == oid else (90, 90, 90)
-            pygame.draw.rect(surface, color, orect)
-            surface.blit(fonts['small'].render(name, True, (255, 255, 220)), (orect.x + 4, orect.y + 3))
-            state['_scene_object_rects'][oid] = orect
-            obj_y += 28
+        # Show object IDs indicator in top-right corner (centered)
+        if state.get('show_object_ids', True):
+            indicator_text = "IDs: ON (F1 pour masquer)"
+            indicator_color = (100, 255, 100)  # Green when ON
+        else:
+            indicator_text = "IDs: OFF (F1 pour afficher)"
+            indicator_color = (255, 100, 100)  # Red when OFF
+        
+        indicator_label = fonts['small'].render(indicator_text, True, indicator_color)
+        # Center the indicator in the top area
+        indicator_x = WIDTH - indicator_label.get_width() - 10
+        surface.blit(indicator_label, (indicator_x, 10))
 
         # status line text
         status = state.get('status', '')
@@ -167,7 +275,11 @@ def draw_layout(surface, fonts, state):
         # Show message if available, otherwise show status
         display_text = msg if msg else status
         if display_text:
-            surface.blit(fonts['small'].render(display_text, True, (200, 200, 200)), (STATUS_RECT.x + 8, STATUS_RECT.y + 6))
+            text_surface = fonts['small'].render(display_text, True, (200, 200, 200))
+            # Center the text horizontally in the status bar
+            text_x = STATUS_RECT.x + (STATUS_RECT.width - text_surface.get_width()) // 2
+            text_y = STATUS_RECT.y + 6
+            surface.blit(text_surface, (text_x, text_y))
 
 
 def handle_mouse(pos, state):
@@ -183,40 +295,54 @@ def handle_mouse(pos, state):
             print('Pending action set to', verb)
             return
 
-    # check scene object clicks
-    for oid, rect in state.get('_scene_object_rects', {}).items():
+    # check scene sprite clicks
+    for obj_id, rect in state.get('_scene_sprite_rects', {}).items():
         if rect.collidepoint(pos):
+            scene = state.get('current_scene_obj')
+            obj = scene['objects'][obj_id]
+            
             # if we have a pending action, execute it on this object
             if state.get('pending_action'):
                 verb = state.pop('pending_action')
-                scene = state.get('current_scene')
-                key = f"{oid}.{verb}"
-                msg = "Rien ne se passe."
-                if scene and key in scene.get('actions', {}):
-                    action = scene['actions'][key]
-                    # action may be dict with text/requires
-                    if isinstance(action, dict):
-                        reqs = action.get('requires', [])
-                        inv_ids = [it['id'] for it in state.get('inventory', [])]
-                        missing = [r for r in reqs if r not in inv_ids]
-                        if missing:
-                            msg = f"Il vous manque: {', '.join(missing)}"
-                        else:
-                            msg = action.get('text', '')
-                            if verb == 'Pick up' and oid in scene.get('objects', {}):
-                                objname = scene['objects'].pop(oid)
-                                state.setdefault('inventory', []).append({'id': oid, 'name': objname})
+                
+                # Check if the object can perform this action
+                if obj.can_interact(verb, state):
+                    # Use the object's perform_action method
+                    msg = obj.perform_action(verb, state)
+                    
+                    # Special handling for pick up
+                    if verb == 'Pick up' and obj_id in scene.get('objects', {}):
+                        objname = obj.name
+                        state.setdefault('inventory', []).append({'id': obj_id, 'name': objname})
+                        # Remove from scene
+                        del scene['objects'][obj_id]
+                        # Remove from sprite rects
+                        if obj_id in state.get('_scene_sprite_rects', {}):
+                            del state['_scene_sprite_rects'][obj_id]
+                else:
+                    # Provide specific error messages based on the action and object state
+                    if verb == "Open" and hasattr(obj, 'state') and obj.state == "open":
+                        msg = f"La {obj.name} est déjà ouverte."
+                    elif verb == "Close" and hasattr(obj, 'state') and obj.state == "closed":
+                        msg = f"La {obj.name} est déjà fermée."
+                    elif verb == "Lock" and hasattr(obj, 'locked') and obj.locked:
+                        msg = f"La {obj.name} est déjà verrouillée."
+                    elif verb == "Unlock" and hasattr(obj, 'locked') and not obj.locked:
+                        msg = f"La {obj.name} n'est pas verrouillée."
+                    elif verb == "Pick up" and hasattr(obj, 'state') and obj.state != "on_ground":
+                        msg = f"La {obj.name} n'est pas disponible à ramasser."
                     else:
-                        msg = action
+                        msg = f"Vous ne pouvez pas {verb.lower()} {obj.name}."
+                    
                 state['message'] = msg
                 state['status'] = ''
-                print('Action', verb, 'on', oid, '->', msg)
+                print('Action', verb, 'on', obj_id, '->', msg)
                 return
 
             # otherwise just select the object
-            state['selected_object'] = oid
-            state['message'] = f"Objet sélectionné: {state['current_scene_obj']['objects'][oid]}"
-            print('Selected object', oid)
+            state['selected_object'] = obj_id
+            state['message'] = f"Objet sélectionné: {obj.name}"
+            print('Selected object', obj_id)
             return
 
     # check inventory clicks
@@ -280,13 +406,14 @@ def main():
 
     # initial state
     state = {
-        'inventory': [{'id': 'key', 'name': 'Key'}, {'id': 'note', 'name': 'Note'}, {'id': 'coin', 'name': 'Coin'}],
+        'inventory': [],  # Start with empty inventory
         'last_click': None,
         'scenes': scenes,
         'current_scene': scenes.get('hall'),
         'current_scene_obj': scenes.get('hall'),
         'selected_object': None,
         'message': '',
+        'show_object_ids': True,  # Option to show/hide object IDs on screen
     }
 
     running = True
@@ -296,6 +423,12 @@ def main():
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 handle_mouse(event.pos, state)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_F1:
+                    # Toggle object IDs display
+                    state['show_object_ids'] = not state.get('show_object_ids', True)
+                    state['message'] = f"Affichage des IDs: {'activé' if state['show_object_ids'] else 'désactivé'}"
+                    print(f"Object IDs display: {'ON' if state['show_object_ids'] else 'OFF'}")
             elif event.type == pygame.MOUSEMOTION:
                 # update hover status
                 hovered = None
@@ -307,11 +440,13 @@ def main():
                         hovered_action = idx
                         break
                 
-                # Check scene objects
+                # Check scene objects (sprites only)
                 if not hovered_action:
-                    for oid, rect in state.get('_scene_object_rects', {}).items():
+                    for obj_id, rect in state.get('_scene_sprite_rects', {}).items():
                         if rect.collidepoint(event.pos):
-                            hovered = state['current_scene_obj']['objects'][oid]
+                            scene = state.get('current_scene_obj')
+                            obj = scene['objects'][obj_id]
+                            hovered = obj.name
                             break
                 
                 # Check inventory
