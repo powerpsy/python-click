@@ -1,0 +1,14 @@
+{
+  "window": {
+    "width": 800,
+    "height": 600,
+    "fullscreen": false
+  },
+  "gameplay": {
+    "language": "fr",
+    "show_object_ids": true
+  },
+  "debug": {
+    "log_level": "INFO"
+  }
+}

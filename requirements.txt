@@ -1,1 +1,7 @@
-pygame>=2.1
+# Dépendances principales pour le jeu
+pygame>=2.1.0
+
+# Pour le développement (optionnel)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=5.0.0
