@@ -1,0 +1,143 @@
+"""
+Base entity class for all game objects
+"""
+
+import pygame
+import time
+from typing import Dict, Any, List, Optional, Tuple
+
+
+class Component:
+    """Base class for entity components"""
+
+    def __init__(self, **properties):
+        self.properties = properties
+
+    def update(self, entity, game_context):
+        """Update component logic"""
+        pass
+
+    def render(self, entity, surface, game_context):
+        """Render component"""
+        pass
+
+
+class BaseEntity:
+    """
+    Base class for all game entities (objects, NPCs, etc.)
+    Uses component-based architecture for flexibility
+    """
+
+    def __init__(self, entity_id: str, name: str, position: Optional[Tuple[int, int]] = None, **properties):
+        self.id = entity_id
+        self.name = name
+        self.position = position or (0, 0)
+        self.properties = properties
+
+        # Component system
+        self.components: Dict[str, Component] = {}
+
+        # Entity state
+        self.visible = True
+        self.interactive = True
+        self.state = properties.get('state', 'default')
+
+        # Visual properties
+        width = properties.get('width', 50)
+        height = properties.get('height', 50)
+        self.sprite = None
+        self.bounding_box = pygame.Rect(0, 0, width, height)  # Use provided size
+
+        # Update bounding box if position is set
+        if self.position:
+            self.bounding_box.center = self.position
+
+    def add_component(self, component: Component) -> None:
+        """Add a component to this entity"""
+        self.components[component.__class__.__name__] = component
+
+    def get_component(self, component_type: type) -> Optional[Component]:
+        """Get a component by type"""
+        return self.components.get(component_type.__name__)
+
+    def remove_component(self, component_type: type) -> None:
+        """Remove a component by type"""
+        if component_type.__name__ in self.components:
+            del self.components[component_type.__name__]
+
+    def has_component(self, component_type: type) -> bool:
+        """Check if entity has a specific component"""
+        return component_type.__name__ in self.components
+
+    def update(self, game_context: Dict[str, Any]) -> None:
+        """Update all components"""
+        for component in self.components.values():
+            component.update(self, game_context)
+
+    def render(self, surface: pygame.Surface, game_context: Dict[str, Any]) -> None:
+        """Render entity and all its components"""
+        if not self.visible:
+            return
+
+        # Render sprite if available
+        if self.sprite:
+            surface.blit(self.sprite, self.position)
+
+        # Render all components
+        for component in self.components.values():
+            component.render(self, surface, game_context)
+
+    def on_click(self, action: Optional[str] = None, game_context: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """
+        Handle click interaction on this entity
+        Returns a message string to display, or None
+        """
+        if game_context is None:
+            game_context = {}
+
+        # Check if entity can interact
+        if not self.can_interact(action or 'click', game_context):
+            return None
+
+        # Perform the action
+        return self.perform_action(action or 'click', game_context)
+
+    def can_interact(self, action: str, game_context: Dict[str, Any]) -> bool:
+        """Check if this entity can perform the given action"""
+        # Default implementation - override in subclasses
+        return self.interactive
+
+    def perform_action(self, action: str, game_context: Dict[str, Any]) -> Optional[str]:
+        """
+        Perform an action on this entity
+        Returns a message to display, or None to show message above entity
+        """
+        # Default implementation - override in subclasses
+        self._show_message_above(f"Rien ne se passe avec {self.name}.", game_context)
+        return None
+
+    def get_bounding_box(self) -> pygame.Rect:
+        """Get the entity's bounding box for collision detection"""
+        return self.bounding_box
+
+    def collides_with_point(self, point: Tuple[int, int]) -> bool:
+        """Check if a point collides with this entity"""
+        return self.bounding_box.collidepoint(point)
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the entity"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+    def __str__(self) -> str:
+        return f"{self.id}: {self.name} at {self.position}"
+
+    def __repr__(self) -> str:
+        return f"BaseEntity(id='{self.id}', name='{self.name}', position={self.position})"

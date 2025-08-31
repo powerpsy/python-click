@@ -3,31 +3,70 @@
 # Format du fichier :
 # - Scenes séparées par une ligne commençant par '## ' suivie d'un identifiant
 # - Chaque scène contient :
-#   title: Titre lisible
-#   desc: Description affichée dans la zone scène
 #   objects: liste d'objets définis par 'id: Nom'
 #   actions: pour chaque objet, lignes 'objet_id.action_nom: résultat' où action_nom est l'un des verbes ci-dessus
 
 ## hall
-title: Le grand hall
-desc: Vous êtes dans un hall faiblement éclairé. Une porte en bois se dresse au nord. Une table en bois occupe le centre, et il y a une clé posée dessus.
 objects:
-  porte: Porte en bois
-  table: Table ancienne
-  clef: Petite clé en laiton
+  x0001. door: Porte en bois
+  x0002. table: Table ancienne
+  x0003. key: Petite clé en laiton
+
+# Object properties and initial states
+object_properties:
+  x0001:
+    type: door
+    position: (500, 300)
+    locked: true
+    key_required: x0003
+  x0002:
+    type: table
+    position: (300, 350)
+    items_on_top: [x0003]
+  x0003:
+    type: key
+    position: (300, 320)
+    description: petite clé en laiton brillant
 
 # Actions pour les objets (format objet.action: résultat texte)
-porte.Open: La porte grince et s'ouvre, révélant un couloir sombre.
-porte.Close: La porte se ferme lentement.
+x0001.Open: La porte grince et s'ouvre, révélant un couloir sombre.
+  effects:
+    - type: show_message
+      params:
+        message: La porte s'ouvre !
+x0001.Close: La porte se ferme lentement.
 
 # Exemple d'action nécessitant un objet (clé id='key') :
-porte.Open [requires: key]: La porte grince et s'ouvre ; la clé a permis de la déverrouiller.
-porte.Close: La porte se ferme lentement.
-porte.Lock: La porte est verrouillée. (Remarque: 'Lock' n'est pas dans les 9 verbes, utilisez 'Close' ou 'Use' avec une clé)
+x0001.Open [requires: x0003]: La porte grince et s'ouvre ; la clé a permis de la déverrouiller.
+  effects:
+    - type: hide_object
+      params:
+        object_id: x0001
+    - type: show_message
+      params:
+        message: Félicitations ! Vous avez ouvert la porte avec la clé !
+x0001.Close: La porte se ferme lentement.
+x0001.Lock: La porte est verrouillée. (Remarque: 'Lock' n'est pas dans les 9 verbes, utilisez 'Close' ou 'Use' avec une clé)
 
 table.Look at: Une table couverte de gravures usées. Il y a quelque chose dessus.
-clef.Pick up: Vous prenez la petite clé en laiton. Elle va dans votre inventaire.
+x0003.Pick up: Vous prenez la petite clé en laiton. Elle va dans votre inventaire.
+  effects:
+    - type: hide_object
+      params:
+        object_id: x0003
+    - type: add_to_inventory
+      params:
+        object_id: x0003
+        name: Petite clé en laiton
+    - type: show_above_object
+      params:
+        text: "J'ai la clé en laiton, à voir quelle porte elle peut ouvrir..."
+        duration: 3000
 
-clef.Use: Vous essayez d'utiliser la clé sur la porte ; si vous la possédez, la porte se déverrouille.
+x0003.Use: Vous essayez d'utiliser la clé sur la porte ; si vous la possédez, la porte se déverrouille.
+  effects:
+    - type: show_message
+      params:
+        message: Utilisez la clé directement sur la porte !
 
 # Fin du script d'exemple. Ajoutez d'autres scènes et règles au même format.

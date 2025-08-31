@@ -1,349 +1,316 @@
+"""
+Point & Click Game - Architecture Modulaire
+Jeu d'aventure pointer-cliquer utilisant BaseEntity
+"""
+
 import sys
 import os
+sys.path.insert(0, os.path.dirname(__file__))
+
 import pygame
+from typing import Dict, Any
+from core import Game, SceneManager, EventSystem, Renderer
+from scenes import Scene
+from ui import GameInterface, NotificationSystem, Inventory
+from utils.logger import get_logger
 
-# Window
-WIDTH, HEIGHT = 800, 600
 
-# Layout: top 3/4 for scene
-SCENE_RECT = pygame.Rect(0, 0, WIDTH, int(HEIGHT * 3 / 4))
+class PointClickGame(Game):
 
-# Bottom area
-BOTTOM_RECT = pygame.Rect(0, SCENE_RECT.height, WIDTH, HEIGHT - SCENE_RECT.height)
+    def __init__(self, width: int = 800, height: int = 600, title: str = "Point & Click Game"):
+        # Initialiser Pygame si pas déjà fait
+        if not pygame.get_init():
+            pygame.init()
 
-# Action grid (3x3) bottom-left
-ACTION_ROWS, ACTION_COLS = 3, 3
-STATUS_HEIGHT = 28
+        # Configuration de la fenêtre
+        self.width = width
+        self.height = height
+        self.title = title
 
-# Reserve a status line between scene and the action/inventory area
-STATUS_RECT = pygame.Rect(0, BOTTOM_RECT.top, WIDTH, STATUS_HEIGHT)
+        # Créer la fenêtre
+        self.screen = pygame.display.set_mode((width, height))
+        pygame.display.set_caption(title)
 
-# Bottom interactive area sits below the status line
-INTERACTIVE_BOTTOM = pygame.Rect(0, BOTTOM_RECT.top + STATUS_HEIGHT, WIDTH, BOTTOM_RECT.height - STATUS_HEIGHT)
+        # Systèmes de jeu
+        self.renderer = Renderer(self.screen)
+        self.event_system = EventSystem()
+        self.scene_manager = SceneManager()
+        self.interface = GameInterface()
+        self.notification_system = NotificationSystem()
 
-# Action area (3x3) bottom-left - now takes 50% of width
-ACTION_AREA = pygame.Rect(0, INTERACTIVE_BOTTOM.top, int(WIDTH * 0.5), INTERACTIVE_BOTTOM.height)
+        # Systèmes optionnels
+        self.script_engine = None
+        self.inventory = Inventory()
+        self.resources = None  # Pour extension future
 
-# Inventory right bottom (4x2) - now takes 50% of width
-INV_COLS, INV_ROWS = 4, 2
-INV_AREA = pygame.Rect(int(WIDTH * 0.5), INTERACTIVE_BOTTOM.top, int(WIDTH * 0.5), INTERACTIVE_BOTTOM.height)
+        # État du jeu
+        self.running = False
+        self.clock = pygame.time.Clock()
+        self.fps = 60
 
-ACTION_VERBS = [
-    'Give', 'Open', 'Close',
-    'Pick up', 'Look at', 'Talk to',
-    'Use', 'Push', 'Pull'
-]
+        # Contexte partagé
+        self.context: Dict[str, Any] = {
+            'game': self,
+            'inventory': [],
+            'current_scene': None,
+            'temp_descriptions': [],
+            'message': '',
+            'selected_action': None,
+        }
 
-def parse_script(path: str):
-    """Parse a simple script.txt format into scenes.
+        # Initialiser les systèmes
+        self._initialize_systems()
 
-    Returns dict scenes[id] = {title, desc, objects: {id:name}, actions: {"obj.Action": result}}
-    """
-    scenes = {}
-    if not os.path.exists(path):
+    def _initialize_systems(self):
+        """Initialiser tous les systèmes"""
+        # Charger la scène par défaut
+        self.load_scenes_from_script()
+
+        # Configurer les gestionnaires d'événements
+        self.event_system.add_handler(pygame.QUIT, self._handle_quit)
+        self.event_system.add_handler(pygame.MOUSEBUTTONDOWN, self._handle_mouse_click)
+        self.event_system.add_handler(pygame.KEYDOWN, self._handle_key_press)
+
+    def load_scenes_from_script(self):
+        """Charger les scènes depuis script.txt"""
+        script_path = os.path.join(os.path.dirname(__file__), 'script.txt')
+        if not os.path.exists(script_path):
+            # Créer une scène par défaut si script.txt n'existe pas
+            self.create_default_scene()
+            return
+
+        try:
+            # Parser le script (version simplifiée)
+            scenes_data = self.parse_script_simple(script_path)
+
+            for scene_id, scene_data in scenes_data.items():
+                scene = Scene(self, scene_data)
+                self.scene_manager.scenes[scene_id] = scene
+
+            # Définir la scène actuelle
+            if 'hall' in self.scene_manager.scenes:
+                self.scene_manager.current_scene = self.scene_manager.scenes['hall']
+                self.context['current_scene'] = self.scene_manager.current_scene
+
+        except Exception as e:
+            logger = get_logger()
+            logger.error(f"Error loading script: {e}")
+            self.create_default_scene()
+
+    def parse_script_simple(self, script_path: str) -> Dict[str, Any]:
+        """Parser simplifié du script.txt - version optimisée"""
+        scenes = {}
+
+        try:
+            with open(script_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Parser basique pour les scènes
+            sections = content.split('## ')
+            for section in sections[1:]:  # Skip first empty section
+                lines = section.strip().split('\n')
+                scene_id = lines[0].strip()
+
+                scene_data = {
+                    'id': scene_id,
+                    'name': scene_id,
+                    'entities': []
+                }
+
+                # Chercher les objets dans la section
+                in_objects = False
+                for line in lines[1:]:
+                    line = line.strip()
+                    if line == 'objects:':
+                        in_objects = True
+                    elif in_objects and '.' in line and ':' in line:
+                        try:
+                            obj_id, obj_info = line.split('.', 1)
+                            obj_type, obj_name = obj_info.split(':', 1)
+                            scene_data['entities'].append({
+                                'id': obj_id.strip(),
+                                'name': obj_name.strip(),
+                                'type': obj_type.strip(),
+                                'position': self.get_default_position(obj_id.strip()),
+                                'properties': {}
+                            })
+                        except:
+                            pass
+                    elif line.startswith('object_properties:'):
+                        break
+
+                scenes[scene_id] = scene_data
+
+        except Exception as e:
+            logger = get_logger()
+            logger.error(f"Error parsing script: {e}")
+
         return scenes
 
-    with open(path, encoding='utf-8') as f:
-        lines = [l.rstrip('\n') for l in f]
+    def get_default_position(self, obj_id: str) -> tuple:
+        """Positions par défaut pour les objets"""
+        positions = {
+            'x0001': (300, 200),  # Porte
+            'x0002': (500, 350),  # Clé
+            'x0003': (150, 300),  # Table
+        }
+        return positions.get(obj_id, (400, 300))
 
-    cur = None
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if line.startswith('## '):
-            sid = line[3:].strip()
-            cur = {'title': '', 'desc': '', 'objects': {}, 'actions': {}}
-            scenes[sid] = cur
-            i += 1
-            continue
+    def create_default_scene(self):
+        """Créer une scène par défaut si le script n'existe pas"""
+        scene_data = {
+            'id': 'hall',
+            'name': 'Hall d\'entrée',
+            'entities': [
+                {
+                    'id': 'door_001',
+                    'name': 'Porte d\'entrée',
+                    'type': 'door',
+                    'position': (300, 200),
+                    'properties': {
+                        'width': 64,
+                        'height': 128,
+                        'locked': True,
+                        'key_required': 'key_001'
+                    }
+                },
+                {
+                    'id': 'key_001',
+                    'name': 'Clé en laiton',
+                    'type': 'key',
+                    'position': (500, 350),
+                    'properties': {
+                        'width': 32,
+                        'height': 32
+                    }
+                },
+                {
+                    'id': 'table_001',
+                    'name': 'Table d\'entrée',
+                    'type': 'table',
+                    'position': (150, 300),
+                    'properties': {
+                        'width': 96,
+                        'height': 64,
+                        'items_on_top': ['key_001']
+                    }
+                }
+            ]
+        }
 
-        if not cur:
-            i += 1
-            continue
+        scene = Scene(self, scene_data)
+        self.scene_manager.scenes['hall'] = scene
+        self.scene_manager.current_scene = scene
+        self.context['current_scene'] = scene
 
-        if line.startswith('title:'):
-            cur['title'] = line.split(':', 1)[1].strip()
-        elif line.startswith('desc:'):
-            cur['desc'] = line.split(':', 1)[1].strip()
-        elif line.startswith('objects:'):
-            # read following indented object lines
-            i += 1
-            while i < len(lines) and lines[i].startswith('  '):
-                ol = lines[i].strip()
-                if ':' in ol:
-                    oid, name = ol.split(':', 1)
-                    cur['objects'][oid.strip()] = name.strip()
-                i += 1
-            continue
-        elif '.' in line and ':' in line:
-            # action line: object.Action [requires: id1,id2]: result
-            left, right = line.split(':', 1)
-            left = left.strip()
-            right = right.strip()
-            requires = []
-            # detect [requires: ...]
-            if '[' in left and ']' in left:
-                lpart, meta = left.split('[', 1)
-                left = lpart.strip()
-                meta = meta.split(']', 1)[0]
-                if 'requires' in meta:
-                    _, vals = meta.split(':', 1)
-                    requires = [v.strip() for v in vals.split(',') if v.strip()]
+    def _handle_mouse_click(self, event, context):
+        """Gérer les clics souris"""
+        pos = event.pos
 
-            cur['actions'][left] = {'text': right, 'requires': requires}
+        # Vérifier si le clic est dans la scène
+        scene_rect = pygame.Rect(0, 0, self.width, int(self.height * 3/4))
+        if scene_rect.collidepoint(pos):
+            # Gérer le clic dans la scène
+            if self.scene_manager.current_scene:
+                if not self.scene_manager.current_scene.handle_click(pos, self.interface.selected_action):
+                    self.context['message'] = "Rien d'intéressant ici"
+        else:
+            # Gérer les clics UI
+            if self.interface:
+                self.interface.handle_click(pos, self.context)
 
-        i += 1
+    def _handle_key_press(self, event, context):
+        """Gérer les appuis de touches"""
+        if event.key == pygame.K_ESCAPE:
+            self.running = False
+        elif event.key == pygame.K_i:
+            # Basculer l'inventaire
+            if self.interface:
+                self.interface.toggle_inventory()
 
-    return scenes
+    def _handle_quit(self, event, context):
+        """Gérer la fermeture"""
+        self.running = False
 
+    def update(self, delta_time: float):
+        """Mettre à jour le jeu"""
+        # Mettre à jour la scène
+        if self.scene_manager.current_scene:
+            self.scene_manager.current_scene.update(delta_time)
 
-def draw_layout(surface, fonts, state):
-    # Backgrounds
-    surface.fill((30, 30, 30))
-    pygame.draw.rect(surface, (50, 80, 120), SCENE_RECT)  # scene
+        # Mettre à jour l'interface
+        if self.interface:
+            self.interface.update(self.context)
 
-    # Bottom panels
-    # status line
-    pygame.draw.rect(surface, (20, 20, 20), STATUS_RECT)
-    # interactive bottom panels background
-    pygame.draw.rect(surface, (40, 40, 40), INTERACTIVE_BOTTOM)
+        # Nettoyer les descriptions temporaires
+        self._update_temp_descriptions()
 
-    # Action grid with verb labels
-    ax, ay, aw, ah = ACTION_AREA
-    cell_w = aw // ACTION_COLS
-    cell_h = ah // ACTION_ROWS
-    for r in range(ACTION_ROWS):
-        for c in range(ACTION_COLS):
-            idx = r * ACTION_COLS + c
-            rect = pygame.Rect(ax + c * cell_w, ay + r * cell_h, cell_w - 4, cell_h - 4)
-            pygame.draw.rect(surface, (70, 70, 70), rect)
-            verb = ACTION_VERBS[idx]
-            # Use bold font if this action is hovered
-            if state.get('hovered_action') == idx:
-                label = fonts['small_bold'].render(verb, True, (255, 255, 255))
-            else:
-                label = fonts['small'].render(verb, True, (200, 200, 200))
-            surface.blit(label, (rect.x + 8, rect.y + 8))
-            # store last action rects for hit detection
-            state.setdefault('_action_rects', {})[idx] = rect
+    def _update_temp_descriptions(self):
+        """Nettoyer les descriptions temporaires expirées"""
+        current_time = pygame.time.get_ticks()
+        temp_descriptions = self.context.get('temp_descriptions', [])
 
-    # Inventory grid
-    ix, iy, iw, ih = INV_AREA
-    inv_cell_w = iw // INV_COLS
-    inv_cell_h = ih // INV_ROWS
-    for r in range(INV_ROWS):
-        for c in range(INV_COLS):
-            rect = pygame.Rect(ix + c * inv_cell_w, iy + r * inv_cell_h, inv_cell_w - 6, inv_cell_h - 6)
-            pygame.draw.rect(surface, (80, 60, 60), rect)
-            idx = r * INV_COLS + c
-            inv = state.get('inventory', [])
-            if idx < len(inv):
-                item = inv[idx]
-                surface.blit(fonts['small'].render(item['name'], True, (240, 240, 200)), (rect.x + 6, rect.y + 6))
-            state.setdefault('_inv_rects', {})[idx] = rect
+        # Garder seulement les descriptions actives
+        active_descriptions = []
+        for desc in temp_descriptions:
+            if current_time - desc['start_time'] < desc['duration']:
+                active_descriptions.append(desc)
 
-    # Scene text and clickable object list (left column of scene)
-    sx, sy = SCENE_RECT.x + 8, SCENE_RECT.y + 8
-    scene = state.get('current_scene_obj')
-    if scene:
-        surface.blit(fonts['large'].render(scene.get('title', ''), True, (240, 240, 240)), (sx, sy))
-        surface.blit(fonts['small'].render(scene.get('desc', ''), True, (220, 220, 220)), (sx, sy + 36))
+        self.context['temp_descriptions'] = active_descriptions
 
-        # list objects
-        obj_y = sy + 64
-        state['_scene_object_rects'] = {}
-        for oid, name in scene.get('objects', {}).items():
-            orect = pygame.Rect(sx, obj_y, 220, 22)
-            color = (120, 120, 90) if state.get('selected_object') == oid else (90, 90, 90)
-            pygame.draw.rect(surface, color, orect)
-            surface.blit(fonts['small'].render(name, True, (255, 255, 220)), (orect.x + 4, orect.y + 3))
-            state['_scene_object_rects'][oid] = orect
-            obj_y += 28
+    def render(self):
+        """Rendre le jeu"""
+        # Effacer l'écran
+        self.renderer.clear()
 
-        # status line text
-        status = state.get('status', '')
-        msg = state.get('message', '')
-        
-        # Show message if available, otherwise show status
-        display_text = msg if msg else status
-        if display_text:
-            surface.blit(fonts['small'].render(display_text, True, (200, 200, 200)), (STATUS_RECT.x + 8, STATUS_RECT.y + 6))
+        # Rendre la scène
+        if self.scene_manager.current_scene:
+            self.scene_manager.current_scene.render(self.renderer)
 
+        # Rendre l'interface
+        if self.interface:
+            self.interface.render(self.renderer, self.context)
 
-def handle_mouse(pos, state):
-    x, y = pos
+        # Rendre les notifications
+        if self.notification_system:
+            self.notification_system.render(self.renderer)
 
-    # check action cells first: clicking an action starts a pending action
-    for idx, rect in state.get('_action_rects', {}).items():
-        if rect.collidepoint(pos):
-            verb = ACTION_VERBS[idx]
-            state['pending_action'] = verb
-            state['status'] = f"{verb} (choisissez une cible)"
-            state['message'] = ''
-            print('Pending action set to', verb)
-            return
+        # Mettre à jour l'affichage
+        pygame.display.flip()
 
-    # check scene object clicks
-    for oid, rect in state.get('_scene_object_rects', {}).items():
-        if rect.collidepoint(pos):
-            # if we have a pending action, execute it on this object
-            if state.get('pending_action'):
-                verb = state.pop('pending_action')
-                scene = state.get('current_scene')
-                key = f"{oid}.{verb}"
-                msg = "Rien ne se passe."
-                if scene and key in scene.get('actions', {}):
-                    action = scene['actions'][key]
-                    # action may be dict with text/requires
-                    if isinstance(action, dict):
-                        reqs = action.get('requires', [])
-                        inv_ids = [it['id'] for it in state.get('inventory', [])]
-                        missing = [r for r in reqs if r not in inv_ids]
-                        if missing:
-                            msg = f"Il vous manque: {', '.join(missing)}"
-                        else:
-                            msg = action.get('text', '')
-                            if verb == 'Pick up' and oid in scene.get('objects', {}):
-                                objname = scene['objects'].pop(oid)
-                                state.setdefault('inventory', []).append({'id': oid, 'name': objname})
-                    else:
-                        msg = action
-                state['message'] = msg
-                state['status'] = ''
-                print('Action', verb, 'on', oid, '->', msg)
-                return
+    def run(self):
+        """Boucle principale du jeu"""
+        self.running = True
+        logger = get_logger()
+        logger.info("Démarrage du jeu")
 
-            # otherwise just select the object
-            state['selected_object'] = oid
-            state['message'] = f"Objet sélectionné: {state['current_scene_obj']['objects'][oid]}"
-            print('Selected object', oid)
-            return
+        try:
+            while self.running:
+                delta_time = self.clock.tick(self.fps) / 1000.0
 
-    # check inventory clicks
-    for idx, rect in state.get('_inv_rects', {}).items():
-        if rect.collidepoint(pos):
-            inv = state.get('inventory', [])
-            if idx < len(inv):
-                item = inv[idx]
-                # if pending action, execute it on inventory item
-                if state.get('pending_action'):
-                    verb = state.pop('pending_action')
-                    scene = state.get('current_scene')
-                    # use id for key
-                    key = f"{item['id']}.{verb}"
-                    msg = "Rien ne se passe."
-                    if scene and key in scene.get('actions', {}):
-                        action = scene['actions'][key]
-                        if isinstance(action, dict):
-                            reqs = action.get('requires', [])
-                            inv_ids = [it['id'] for it in state.get('inventory', [])]
-                            missing = [r for r in reqs if r not in inv_ids]
-                            if missing:
-                                msg = f"Il vous manque: {', '.join(missing)}"
-                            else:
-                                msg = action.get('text', '')
-                        else:
-                            msg = action
-                    state['message'] = msg
-                    state['status'] = ''
-                    print('Action', verb, 'on inventory', item['name'], '->', msg)
-                    return
+                # Gérer les événements
+                for event in pygame.event.get():
+                    self.event_system.handle_event(event, self.context)
 
-                # clicking inventory without pending action - just print for debug
-                print('Clicked inventory item:', item['name'])
-            return
+                # Mettre à jour et rendre
+                self.update(delta_time)
+                self.render()
 
-    # click elsewhere
-    if SCENE_RECT.collidepoint(pos):
-        state['message'] = ''
-        state['selected_object'] = None
-        # clicking background without pending action clears status
-        if not state.get('pending_action'):
-            state['status'] = ''
-        print('Clicked scene at', pos)
+        except KeyboardInterrupt:
+            logger.info("Jeu interrompu par l'utilisateur")
+        except Exception as e:
+            logger.error(f"Erreur pendant l'exécution: {e}")
+        finally:
+            logger.info("Jeu terminé")
+            pygame.quit()
 
 
 def main():
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption('Point & Click Prototype')
-    clock = pygame.time.Clock()
-
-    fonts = {
-        'small': pygame.font.SysFont('Arial', 16),
-        'small_bold': pygame.font.SysFont('Arial', 16, bold=True),
-        'large': pygame.font.SysFont('Arial', 24),
-    }
-
-    # load script
-    scenes = parse_script(os.path.join(os.path.dirname(__file__), 'script.txt'))
-
-    # initial state
-    state = {
-        'inventory': [{'id': 'key', 'name': 'Key'}, {'id': 'note', 'name': 'Note'}, {'id': 'coin', 'name': 'Coin'}],
-        'last_click': None,
-        'scenes': scenes,
-        'current_scene': scenes.get('hall'),
-        'current_scene_obj': scenes.get('hall'),
-        'selected_object': None,
-        'message': '',
-    }
-
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                handle_mouse(event.pos, state)
-            elif event.type == pygame.MOUSEMOTION:
-                # update hover status
-                hovered = None
-                hovered_action = None
-                
-                # Check if hovering over action buttons
-                for idx, rect in state.get('_action_rects', {}).items():
-                    if rect.collidepoint(event.pos):
-                        hovered_action = idx
-                        break
-                
-                # Check scene objects
-                if not hovered_action:
-                    for oid, rect in state.get('_scene_object_rects', {}).items():
-                        if rect.collidepoint(event.pos):
-                            hovered = state['current_scene_obj']['objects'][oid]
-                            break
-                
-                # Check inventory
-                if not hovered and not hovered_action:
-                    for idx, rect in state.get('_inv_rects', {}).items():
-                        if rect.collidepoint(event.pos):
-                            inv = state.get('inventory', [])
-                            if idx < len(inv):
-                                hovered = inv[idx]['name']
-                                break
-
-                # Update state
-                state['hovered_action'] = hovered_action
-
-                if hovered:
-                    # if there's a pending action, show verb + name
-                    if state.get('pending_action'):
-                        state['status'] = f"{state['pending_action']} → {hovered}"
-                    else:
-                        state['status'] = hovered
-                else:
-                    if state.get('pending_action'):
-                        state['status'] = f"{state['pending_action']} (choisissez une cible)"
-                    else:
-                        state['status'] = ''
-
-        draw_layout(screen, fonts, state)
-        pygame.display.flip()
-        clock.tick(60)
-
-    pygame.quit()
+    """Point d'entrée principal"""
+    game = PointClickGame()
+    game.run()
     return 0
+
 
 if __name__ == '__main__':
     raise SystemExit(main())
