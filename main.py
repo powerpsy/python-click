@@ -47,6 +47,7 @@ class PointClickGame(Game):
         self.running = False
         self.clock = pygame.time.Clock()
         self.fps = 60
+        self.show_debug_ids = False  # Affichage des codes d'objets (F1)
 
         # Contexte partagé
         self.context: Dict[str, Any] = {
@@ -56,6 +57,7 @@ class PointClickGame(Game):
             'temp_descriptions': [],
             'message': '',
             'selected_action': None,
+            'show_debug_ids': False,
         }
 
         # Initialiser les systèmes
@@ -69,6 +71,7 @@ class PointClickGame(Game):
         # Configurer les gestionnaires d'événements
         self.event_system.add_handler(pygame.QUIT, self._handle_quit)
         self.event_system.add_handler(pygame.MOUSEBUTTONDOWN, self._handle_mouse_click)
+        self.event_system.add_handler(pygame.MOUSEMOTION, self._handle_mouse_motion)
         self.event_system.add_handler(pygame.KEYDOWN, self._handle_key_press)
 
     def load_scenes_from_script(self):
@@ -132,7 +135,7 @@ class PointClickGame(Game):
                                 'name': obj_name.strip(),
                                 'type': obj_type.strip(),
                                 'position': self.get_default_position(obj_id.strip()),
-                                'properties': {}
+                                'properties': self.get_default_properties(obj_id.strip(), obj_type.strip())
                             })
                         except:
                             pass
@@ -150,11 +153,38 @@ class PointClickGame(Game):
     def get_default_position(self, obj_id: str) -> tuple:
         """Positions par défaut pour les objets"""
         positions = {
-            'x0001': (300, 200),  # Porte
-            'x0002': (500, 350),  # Clé
-            'x0003': (150, 300),  # Table
+            'x0001': (500, 300),  # Porte (selon script.txt)
+            'x0002': (300, 350),  # Table (selon script.txt)  
+            'x0003': (300, 320),  # Clé (selon script.txt)
         }
         return positions.get(obj_id, (400, 300))
+
+    def get_default_properties(self, obj_id: str, obj_type: str) -> Dict[str, Any]:
+        """Propriétés par défaut pour les objets selon le script.txt"""
+        if obj_id == 'x0001' and obj_type == 'door':
+            # Porte verrouillée nécessitant la clé x0003
+            return {
+                'width': 64,
+                'height': 128,
+                'locked': True,
+                'key_required': 'x0003'
+            }
+        elif obj_id == 'x0002' and obj_type == 'table':
+            # Table avec la clé dessus
+            return {
+                'width': 96,
+                'height': 64,
+                'items_on_top': ['x0003']
+            }
+        elif obj_id == 'x0003' and obj_type == 'key':
+            # Clé
+            return {
+                'width': 32,
+                'height': 32,
+                'description': 'petite clé en laiton brillant'
+            }
+        else:
+            return {}
 
     def create_default_scene(self):
         """Créer une scène par défaut si le script n'existe pas"""
@@ -212,12 +242,127 @@ class PointClickGame(Game):
         if scene_rect.collidepoint(pos):
             # Gérer le clic dans la scène
             if self.scene_manager.current_scene:
-                if not self.scene_manager.current_scene.handle_click(pos, self.interface.selected_action):
-                    self.context['message'] = "Rien d'intéressant ici"
+                clicked_entity = self._get_clicked_entity(pos)
+                
+                if clicked_entity:
+                    # Un objet a été cliqué
+                    if self.interface.selected_action in self.interface.two_object_actions:
+                        # Action à deux objets
+                        if self.interface.first_object is None:
+                            # Premier objet sélectionné
+                            self.interface.first_object = clicked_entity
+                            preposition = "à" if self.interface.selected_action == "Donner" else "avec"
+                            self.context['status'] = f"{self.interface.selected_action} {clicked_entity.name} {preposition}"
+                        else:
+                            # Deuxième objet sélectionné - exécuter l'action
+                            self._execute_two_object_action(
+                                self.interface.selected_action,
+                                self.interface.first_object,
+                                clicked_entity
+                            )
+                            # Reset l'état
+                            self.interface.selected_action = None
+                            self.interface.first_object = None
+                            self.context['selected_action'] = None
+                            self.context['status'] = ""
+                    else:
+                        # Action normale à un objet
+                        if not self.scene_manager.current_scene.handle_click(pos, self.interface.selected_action):
+                            # Reset si l'action échoue
+                            if self.interface.selected_action:
+                                self.interface.selected_action = None
+                                self.interface.first_object = None
+                                self.context['selected_action'] = None
+                else:
+                    # Aucun objet cliqué - annuler les actions en cours
+                    if self.interface.selected_action:
+                        self.interface.selected_action = None
+                        self.interface.first_object = None
+                        self.context['selected_action'] = None
+                        self.context['status'] = ""
         else:
             # Gérer les clics UI
             if self.interface:
                 self.interface.handle_click(pos, self.context)
+
+    def _get_clicked_entity(self, pos):
+        """Trouve l'entité cliquée à la position donnée"""
+        if self.scene_manager.current_scene:
+            for entity in self.scene_manager.current_scene.entities:
+                if entity.visible and entity.bounding_box.collidepoint(pos):
+                    return entity
+        return None
+
+    def _execute_two_object_action(self, action, first_obj, second_obj):
+        """Exécute une action à deux objets"""
+        if action == "Utiliser":
+            # Logique pour "Utiliser X avec Y"
+            result = first_obj.use_with(second_obj, self.context)
+            if result:
+                self.context['status'] = result
+        elif action == "Donner":
+            # Logique pour "Donner X à Y" 
+            result = first_obj.give_to(second_obj, self.context)
+            if result:
+                self.context['status'] = result
+
+    def _handle_mouse_motion(self, event, context):
+        """Gérer le mouvement de la souris"""
+        pos = event.pos
+        
+        # Gérer le survol de l'interface (priorité aux boutons d'action)
+        if self.interface:
+            self.interface.handle_hover(pos)
+            # Si une action est survolée, afficher son nom
+            if self.interface.hovered_action:
+                self.context['status'] = self.interface.hovered_action
+                return
+        
+        # Vérifier si le survol est dans la scène pour les entités
+        scene_rect = pygame.Rect(0, 0, self.width, int(self.height * 3/4))
+        if scene_rect.collidepoint(pos):
+            # Vérifier le survol des entités dans la scène
+            if self.scene_manager.current_scene:
+                entity_name = self.scene_manager.current_scene.handle_hover(pos)
+                if entity_name:
+                    # Gestion spéciale pour les actions à deux objets
+                    if self.interface.selected_action in self.interface.two_object_actions:
+                        if self.interface.first_object is None:
+                            # Premier objet à sélectionner
+                            self.context['status'] = f"{self.interface.selected_action} {entity_name}"
+                        else:
+                            # Deuxième objet (combinaison complète)
+                            if self.interface.selected_action == "Donner":
+                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à {entity_name}"
+                            else:  # Utiliser
+                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec {entity_name}"
+                    elif self.interface.selected_action:
+                        # Action normale à un objet
+                        self.context['status'] = f"{self.interface.selected_action} {entity_name}"
+                    else:
+                        self.context['status'] = entity_name
+                else:
+                    # Pas d'entité survolée, afficher l'état actuel
+                    if self.interface.selected_action and self.interface.first_object:
+                        if self.interface.selected_action == "Donner":
+                            self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à"
+                        else:  # Utiliser
+                            self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec"
+                    elif self.interface.selected_action:
+                        self.context['status'] = self.interface.selected_action
+                    else:
+                        self.context['status'] = ""
+        else:
+            # Hors de la scène, afficher l'état actuel
+            if self.interface.selected_action and self.interface.first_object:
+                if self.interface.selected_action == "Donner":
+                    self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à"
+                else:  # Utiliser
+                    self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec"
+            elif self.interface.selected_action:
+                self.context['status'] = self.interface.selected_action
+            else:
+                self.context['status'] = ""
 
     def _handle_key_press(self, event, context):
         """Gérer les appuis de touches"""
@@ -227,6 +372,10 @@ class PointClickGame(Game):
             # Basculer l'inventaire
             if self.interface:
                 self.interface.toggle_inventory()
+        elif event.key == pygame.K_F1:
+            # Basculer l'affichage des codes d'objets
+            self.show_debug_ids = not self.show_debug_ids
+            self.context['show_debug_ids'] = self.show_debug_ids
 
     def _handle_quit(self, event, context):
         """Gérer la fermeture"""
@@ -265,7 +414,7 @@ class PointClickGame(Game):
 
         # Rendre la scène
         if self.scene_manager.current_scene:
-            self.scene_manager.current_scene.render(self.renderer)
+            self.scene_manager.current_scene.render(self.renderer, self.context)
 
         # Rendre l'interface
         if self.interface:

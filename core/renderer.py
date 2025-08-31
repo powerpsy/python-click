@@ -73,29 +73,158 @@ class Renderer:
                 self._render_description(desc)
 
     def _render_description(self, desc: Dict[str, Any]) -> None:
-        """Render a single description with background"""
+        """Render a single description with outlined text, wrapped to fit screen"""
         text = desc['text']
         position = desc['position']
 
-        # Create text surface
+        # Get font
         font = self.fonts.get('small', self.fonts['small'])
-        text_surface = font.render(text, True, (255, 255, 255))
+        
+        # Define the graphics area boundaries (top 3/4 of screen)
+        graphics_height = int(600 * 3 / 4)  # 450 pixels
+        max_width = 400  # Half screen width for better readability
+        margin = 10
+        
+        # Wrap text to fit within boundaries
+        wrapped_lines = self._wrap_text(text, font, max_width)
+        
+        # Calculate total text height
+        line_height = font.get_height() + 2  # Small spacing between lines
+        total_height = len(wrapped_lines) * line_height
+        
+        # Find the widest line to determine block width
+        max_line_width = max(font.size(line)[0] for line in wrapped_lines)
+        
+        # Calculate starting Y position (above the object, but stay in graphics area)
+        start_y = position[1] - 60 - total_height
+        if start_y < margin:  # Too high, move below object
+            start_y = position[1] + 20
+        if start_y + total_height > graphics_height - margin:  # Too low, clamp to graphics area
+            start_y = graphics_height - total_height - margin
+        
+        # Calculate the center X position for the entire block (ideally centered on object)
+        ideal_block_center_x = position[0]
+        
+        # Calculate the actual boundaries of the text block when centered
+        block_left = ideal_block_center_x - max_line_width // 2
+        block_right = ideal_block_center_x + max_line_width // 2
+        
+        # Adjust block position if it exceeds screen boundaries
+        if block_left < margin:
+            # Shift right to respect left margin
+            block_center_x = margin + max_line_width // 2
+        elif block_right > 800 - margin:
+            # Shift left to respect right margin
+            block_center_x = 800 - margin - max_line_width // 2
+        else:
+            # Use ideal position
+            block_center_x = ideal_block_center_x
+        
+        # Render each line, centered within the adjusted block
+        for i, line in enumerate(wrapped_lines):
+            line_width = font.size(line)[0]
+            # Center each line around the adjusted block center
+            line_x = block_center_x - line_width // 2
+            line_y = start_y + (i * line_height)
+            self._render_outlined_text_no_clamp(line, (line_x, line_y), font, (255, 255, 255), (0, 0, 0))
 
-        # Create background rectangle
-        bg_rect = pygame.Rect(
-            position[0] - text_surface.get_width() // 2 - 5,
-            position[1] - 60,
-            text_surface.get_width() + 10,
-            text_surface.get_height() + 6
+    def _render_outlined_text_no_clamp(self, text: str, position: tuple, font: pygame.font.Font, 
+                                      text_color: tuple, outline_color: tuple, outline_width: int = 2):
+        """Render text with an outline effect without position clamping"""
+        # Use position directly without clamping
+        final_pos = position
+        
+        # Render outline by drawing text in multiple offset positions
+        for dx in range(-outline_width, outline_width + 1):
+            for dy in range(-outline_width, outline_width + 1):
+                if dx != 0 or dy != 0:  # Don't draw at center position yet
+                    outline_surface = font.render(text, True, outline_color)
+                    self.surface.blit(outline_surface, (final_pos[0] + dx, final_pos[1] + dy))
+        
+        # Render main text on top
+        main_text_surface = font.render(text, True, text_color)
+        self.surface.blit(main_text_surface, final_pos)
+
+    def _wrap_text(self, text: str, font: pygame.font.Font, max_width: int) -> list:
+        """Wrap text to fit within specified width"""
+        words = text.split(' ')
+        lines = []
+        current_line = []
+        
+        for word in words:
+            # Test if adding this word would exceed max width
+            test_line = ' '.join(current_line + [word])
+            test_width = font.size(test_line)[0]
+            
+            if test_width <= max_width:
+                current_line.append(word)
+            else:
+                # Current line is full, start a new one
+                if current_line:  # Don't add empty lines
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                
+                # Check if single word is too long for one line
+                if font.size(word)[0] > max_width:
+                    # Split long word by characters
+                    char_lines = self._split_long_word(word, font, max_width)
+                    lines.extend(char_lines[:-1])  # Add all but last
+                    current_line = [char_lines[-1]] if char_lines[-1] else []
+        
+        # Add remaining words
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return lines
+
+    def _split_long_word(self, word: str, font: pygame.font.Font, max_width: int) -> list:
+        """Split a word that's too long to fit on one line"""
+        lines = []
+        current_chars = ""
+        
+        for char in word:
+            test_chars = current_chars + char
+            if font.size(test_chars)[0] <= max_width:
+                current_chars = test_chars
+            else:
+                if current_chars:
+                    lines.append(current_chars)
+                current_chars = char
+        
+        if current_chars:
+            lines.append(current_chars)
+        
+        return lines
+
+    def _render_outlined_text(self, text: str, position: tuple, font: pygame.font.Font, 
+                             text_color: tuple, outline_color: tuple, outline_width: int = 2, center: bool = False):
+        """Render text with an outline effect"""
+        # Create text surface for measuring
+        text_surface = font.render(text, True, text_color)
+        
+        # Calculate final position if centering
+        if center:
+            final_pos = (position[0] - text_surface.get_width() // 2, position[1])
+        else:
+            final_pos = position
+        
+        # Clamp position to stay within screen bounds with 10px margins
+        margin = 10
+        final_pos = (
+            max(margin, min(final_pos[0], 800 - text_surface.get_width() - margin)),
+            max(margin, min(final_pos[1], 600 - text_surface.get_height() - margin))
         )
-
-        # Draw background and border
-        pygame.draw.rect(self.surface, (0, 0, 0), bg_rect)  # Black background
-        pygame.draw.rect(self.surface, (255, 255, 255), bg_rect, 1)  # White border
-
-        # Draw text
-        text_pos = (position[0] - text_surface.get_width() // 2, position[1] - 55)
-        self.surface.blit(text_surface, text_pos)
+        
+        # Render outline by drawing text in multiple offset positions
+        for dx in range(-outline_width, outline_width + 1):
+            for dy in range(-outline_width, outline_width + 1):
+                if dx != 0 or dy != 0:  # Don't draw at center position yet
+                    outline_surface = font.render(text, True, outline_color)
+                    self.surface.blit(outline_surface, (final_pos[0] + dx, final_pos[1] + dy))
+        
+        # Render main text on top
+        main_text_surface = font.render(text, True, text_color)
+        self.surface.blit(main_text_surface, final_pos)
 
     def _load_image(self, image_name: str) -> Optional[pygame.Surface]:
         """Load an image from assets"""

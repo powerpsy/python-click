@@ -74,7 +74,7 @@ class ScriptEngine:
 
         if effect_type == 'show_message':
             message = params.get('message', '')
-            context['message'] = message
+            context['status'] = message
 
         elif effect_type == 'show_above_object':
             # This will be handled by the current object

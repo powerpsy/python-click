@@ -4,6 +4,7 @@ Base entity class for all game objects
 
 import pygame
 import time
+import random
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -112,8 +113,58 @@ class BaseEntity:
         Perform an action on this entity
         Returns a message to display, or None to show message above entity
         """
-        # Default implementation - override in subclasses
-        self._show_message_above(f"Rien ne se passe avec {self.name}.", game_context)
+        # Default implementation - show random message for unsupported actions
+        random_messages = [
+            "Cela n'a pas d'effet.",
+            "Je ne vois pas ce que cela est censé faire.",
+            "Je ne crois pas, non.",
+            "Ça ne semble pas être une bonne idée.",
+            "Je n'arrive pas à faire ça.",
+            "Ce n'est pas possible.",
+            "Rien ne se passe.",
+            "Je ne pense pas que ce soit utile.",
+            "Cela ne mène à rien.",
+            "Je ne vois pas l'intérêt.",
+            "Ça ne fonctionne pas comme ça.",
+            "Je préfère ne pas essayer."
+        ]
+        
+        message = random.choice(random_messages)
+        self._show_message_above(message, game_context)
+        return None
+
+    def use_with(self, other_entity, game_context: Dict[str, Any]) -> Optional[str]:
+        """
+        Use this entity with another entity (for two-object actions)
+        Returns a message to display, or None to show message above entity
+        """
+        # Default implementation for unsupported combinations
+        random_messages = [
+            f"Je ne vois pas comment utiliser {self.name} avec {other_entity.name}.",
+            f"Ça ne fonctionne pas ensemble.",
+            f"Ce n'est pas compatible.",
+            f"Je ne pense pas que ce soit une bonne combinaison."
+        ]
+        
+        message = random.choice(random_messages)
+        self._show_message_above(message, game_context)
+        return None
+
+    def give_to(self, other_entity, game_context: Dict[str, Any]) -> Optional[str]:
+        """
+        Give this entity to another entity (for two-object actions)
+        Returns a message to display, or None to show message above entity
+        """
+        # Default implementation for unsupported combinations
+        random_messages = [
+            f"Je ne peux pas donner {self.name} à {other_entity.name}.",
+            f"{other_entity.name} ne semble pas intéressé.",
+            f"Ce n'est pas nécessaire.",
+            f"Ça ne sert à rien."
+        ]
+        
+        message = random.choice(random_messages)
+        self._show_message_above(message, game_context)
         return None
 
     def get_bounding_box(self) -> pygame.Rect:

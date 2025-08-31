@@ -39,21 +39,8 @@ class Door(BaseEntity):
         if not self.interactive:
             return False
 
-        if action == "Ouvrir":
-            if self.state == "open":
-                return False  # Already open
-            if self.locked and game_context:
-                # Check if player has the required key
-                inventory_ids = [item.get('id') for item in game_context.get('inventory', [])]
-                if self.key_required and self.key_required not in inventory_ids:
-                    return False  # Missing key
-            return not self.locked
-        elif action == "Fermer":
-            return self.state == "open"  # Can only close if open
-        elif action in ["Regarder", "Pousser", "Tirer"]:
-            return True
-
-        return False
+        # Allow all actions to reach perform_action for proper handling
+        return True
 
     def perform_action(self, action: str, game_context: Dict[str, Any]) -> Optional[str]:
         """Perform an action on the door"""
@@ -108,6 +95,7 @@ class Door(BaseEntity):
             self._show_message_above("Vous tirez la porte.", game_context)
             return None
 
+        # For all other actions, use random message from parent class
         return super().perform_action(action, game_context)
 
     def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
@@ -127,7 +115,7 @@ class Key(BaseEntity):
     """Key entity for the game"""
 
     def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
-                 width: int = 32, height: int = 32):
+                 width: int = 32, height: int = 32, description: str = "en laiton qui brille faiblement dans la lumière ambiante, avec des gravures complexes sur sa surface"):
         super().__init__(
             entity_id=entity_id,
             name=name,
@@ -136,9 +124,11 @@ class Key(BaseEntity):
             height=height
         )
 
+        self.description = description
         self.state = "on_ground"
         self.properties.update({
-            'state': self.state
+            'state': self.state,
+            'description': self.description
         })
 
     def can_interact(self, action: str, game_context: Dict[str, Any]) -> bool:
@@ -146,12 +136,8 @@ class Key(BaseEntity):
         if not self.interactive:
             return False
 
-        if action == "Prendre":
-            return self.state == "on_ground"  # Can only pick up if on ground
-        elif action in ["Regarder", "Utiliser"]:
-            return True
-
-        return False
+        # Allow all actions to reach perform_action for proper handling
+        return True
 
     def perform_action(self, action: str, game_context: Dict[str, Any]) -> Optional[str]:
         """Perform an action on the key"""
@@ -184,7 +170,30 @@ class Key(BaseEntity):
             self._show_message_above("Vous essayez d'utiliser la clé, mais rien ne se passe.", game_context)
             return None
 
+        # For all other actions, use random message from parent class
         return super().perform_action(action, game_context)
+
+    def use_with(self, other_entity, game_context: Dict[str, Any]) -> Optional[str]:
+        """Use key with another entity"""
+        # Import here to avoid circular import
+        if hasattr(other_entity, '__class__') and other_entity.__class__.__name__ == 'Door':
+            # Using key with door
+            if other_entity.locked and other_entity.key_required == self.id:
+                other_entity.locked = False
+                other_entity.state = "open"
+                other_entity.properties['locked'] = False
+                other_entity.properties['state'] = "open"
+                self._show_message_above("Vous utilisez la clé pour ouvrir la porte.", game_context)
+                return None
+            elif not other_entity.locked:
+                self._show_message_above("La porte n'est pas verrouillée.", game_context)
+                return None
+            else:
+                self._show_message_above("Cette clé ne va pas avec cette porte.", game_context)
+                return None
+        
+        # Default behavior for other combinations
+        return super().use_with(other_entity, game_context)
 
     def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
         """Helper method to show a message above the key"""
@@ -222,30 +231,27 @@ class Table(BaseEntity):
         if not self.interactive:
             return False
 
-        if action in ["Regarder", "Pousser", "Tirer"]:
-            return True
-
-        return False
+        # Allow all actions to reach perform_action for proper handling
+        return True
 
     def perform_action(self, action: str, game_context: Dict[str, Any]) -> Optional[str]:
         """Perform an action on the table"""
         if action == "Regarder":
             description_text = ""
+            visible_items = []
+            
             if self.items_on_top:
-                # Try to get item names from the game context
-                items_names = []
+                # Check which items are still visible on the scene
                 objects = game_context.get('current_scene_obj', {}).get('objects', {})
                 for item_id in self.items_on_top:
-                    if item_id in objects:
-                        items_names.append(objects[item_id].name)
+                    if item_id in objects and objects[item_id].visible:
+                        visible_items.append(objects[item_id].name)
 
-                if items_names:
-                    items_str = ", ".join(items_names)
-                    description_text = f"Une {self.name} avec {items_str} dessus."
-                else:
-                    description_text = f"Une {self.name}."
+            if visible_items:
+                items_str = ", ".join(visible_items)
+                description_text = f"Une {self.name} avec {items_str} dessus."
             else:
-                description_text = f"Une {self.name} vide."
+                description_text = f"C'est une table."
 
             self._show_message_above(description_text, game_context)
             return None
@@ -258,6 +264,7 @@ class Table(BaseEntity):
             self._show_message_above("Vous tirez la table, mais elle est trop lourde.", game_context)
             return None
 
+        # For all other actions, use random message from parent class
         return super().perform_action(action, game_context)
 
     def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:

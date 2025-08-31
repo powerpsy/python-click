@@ -36,6 +36,10 @@ class GameInterface:
         self.show_inventory = False
         self.selected_action = None
         self.hovered_action = None
+        
+        # Two-object action state
+        self.first_object = None  # For actions like "Utiliser clé avec..."
+        self.two_object_actions = ['Donner', 'Utiliser']  # Actions that require two objects
 
         # Fonts
         self.fonts = self._load_fonts()
@@ -81,16 +85,10 @@ class GameInterface:
         # Background
         renderer.fill_rect(self.STATUS_RECT, (20, 20, 20))
 
-        # Status text
+        # Status text - centered horizontally and vertically
         status_text = context.get('status', '')
         if status_text:
-            renderer.render_text(status_text, (10, self.STATUS_RECT.centery),
-                               font_name='small', center=False)
-
-        # Message text
-        message = context.get('message', '')
-        if message:
-            renderer.render_text(message, (self.width - 10, self.STATUS_RECT.centery),
+            renderer.render_text(status_text, self.STATUS_RECT.center,
                                font_name='small', center=True)
 
     def _render_action_bar(self, renderer, context: Dict[str, Any]) -> None:
@@ -125,8 +123,9 @@ class GameInterface:
 
             # Button text
             text_color = (255, 255, 255)
+            font_name = 'small_bold' if self.hovered_action == action else 'small'
             renderer.render_text(action, button_rect.center,
-                               color=text_color, font_name='small', center=True)
+                               color=text_color, font_name=font_name, center=True)
 
     def _render_inventory(self, renderer, context: Dict[str, Any]) -> None:
         """Render the inventory panel"""
@@ -169,6 +168,30 @@ class GameInterface:
 
         return False
 
+    def handle_hover(self, pos: Tuple[int, int]) -> None:
+        """Handle mouse hover on interface elements"""
+        # Reset hover state
+        self.hovered_action = None
+        
+        # Check action buttons
+        button_width = self.ACTION_AREA.width // 3
+        button_height = self.ACTION_AREA.height // 3
+
+        for i, action in enumerate(self.action_verbs):
+            row = i // 3
+            col = i % 3
+
+            button_rect = pygame.Rect(
+                self.ACTION_AREA.left + col * button_width,
+                self.ACTION_AREA.top + row * button_height,
+                button_width,
+                button_height
+            )
+
+            if button_rect.collidepoint(pos):
+                self.hovered_action = action
+                break
+
     def _handle_action_click(self, pos: Tuple[int, int], context: Dict[str, Any]) -> bool:
         """Handle click on action buttons"""
         button_width = self.ACTION_AREA.width // 3
@@ -188,7 +211,7 @@ class GameInterface:
             if button_rect.collidepoint(pos):
                 self.selected_action = action
                 context['selected_action'] = action
-                context['message'] = ""
+                context['status'] = action
                 return True
 
         return False

@@ -179,7 +179,7 @@ class Game:
 
     def show_message(self, message: str, duration: int = 2000) -> None:
         """Show a message to the player"""
-        self.context['message'] = message
+        self.context['status'] = message
         # Auto-clear after duration
         pygame.time.set_timer(pygame.USEREVENT + 1, duration)
 
