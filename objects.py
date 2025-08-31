@@ -138,6 +138,10 @@ class Key(GameObject):
                 return f"La {self.name} n'est pas disponible à ramasser."
             self.state = "in_inventory"
             self.visible = False
+            # Add the object to the player's inventory
+            if 'inventory' not in game_state:
+                game_state['inventory'] = []
+            game_state['inventory'].append({'id': self.id, 'name': self.name})
             return f"Vous ramassez la {self.name}."
         elif action == "Look at":
             if self.state == "on_ground":

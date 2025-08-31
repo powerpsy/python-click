@@ -1,7 +1,7 @@
 import sys
 import os
 import pygame
-from objects import create_object, get_object, get_all_objects
+from objects import create_object, get_object, get_all_objects, GameObject, Door, Key
 
 # Window
 WIDTH, HEIGHT = 800, 600
@@ -54,6 +54,7 @@ def parse_script(path: str):
     i = 0
     while i < len(lines):
         line = lines[i].strip()
+        raw_line = lines[i]  # Keep original line with spaces for startswith checks
         if line.startswith('## '):
             sid = line[3:].strip()
             cur = {'title': '', 'desc': '', 'objects': {}, 'actions': {}}
@@ -67,16 +68,16 @@ def parse_script(path: str):
             i += 1
             continue
 
-        if line.startswith('title:'):
+        if raw_line.startswith('title:'):
             cur['title'] = line.split(':', 1)[1].strip()
-        elif line.startswith('desc:'):
+        elif raw_line.startswith('desc:'):
             cur['desc'] = line.split(':', 1)[1].strip()
-        elif line.startswith('objects:'):
+        elif raw_line.startswith('objects:'):
             parsing_objects = True
             parsing_properties = False
             i += 1
             continue
-        elif line.startswith('object_properties:'):
+        elif raw_line.startswith('object_properties:'):
             parsing_objects = False
             parsing_properties = True
             i += 1
@@ -92,43 +93,48 @@ def parse_script(path: str):
             # Create the object with basic properties
             obj = create_object(obj_type, obj_id, name)
             cur['objects'][obj_id] = obj
-        elif parsing_properties and line.startswith('  ') and not ':' in line:
-            # Start of object properties block
-            obj_id = line.strip()
+        elif parsing_properties and raw_line.startswith('  ') and ':' in raw_line and not raw_line.startswith('    '):
+            # Start of object properties block (e.g., "  x0001:")
+            obj_id = line.strip().rstrip(':')
             if obj_id in cur['objects']:
                 obj = cur['objects'][obj_id]
                 # Parse the following indented properties
                 i += 1
-                while i < len(lines) and lines[i].startswith('    '):
+                while i < len(lines) and (lines[i].startswith('    ') or lines[i].strip() == ''):
+                    if lines[i].strip() == '':
+                        i += 1
+                        continue
                     prop_line = lines[i].strip()
                     if ':' in prop_line:
-                        prop_name, prop_value = prop_line.split(':', 1)
-                        prop_name = prop_name.strip()
-                        prop_value = prop_value.strip()
+                        parts = prop_line.split(':', 1)
+                        if len(parts) == 2:
+                            prop_name, prop_value = parts
+                            prop_name = prop_name.strip()
+                            prop_value = prop_value.strip()
 
-                        if prop_name == 'type':
-                            # Type already set during object creation
-                            pass
-                        elif prop_name == 'position':
-                            # Parse position tuple
-                            if prop_value.startswith('(') and prop_value.endswith(')'):
-                                coords = prop_value[1:-1].split(',')
-                                obj.position = (int(coords[0].strip()), int(coords[1].strip()))
-                        elif prop_name == 'locked':
-                            if hasattr(obj, 'locked'):
-                                obj.locked = prop_value.lower() == 'true'
-                        elif prop_name == 'key_required':
-                            if hasattr(obj, 'key_required'):
-                                obj.key_required = prop_value
-                        elif prop_name == 'items_on_top':
-                            if hasattr(obj, 'items_on_top'):
-                                # Parse list of items
-                                if prop_value.startswith('[') and prop_value.endswith(']'):
-                                    items_str = prop_value[1:-1]
-                                    if items_str:
-                                        obj.items_on_top = [item.strip().strip("'\"") for item in items_str.split(',')]
-                        elif prop_name == 'description':
-                            obj.description = prop_value
+                            if prop_name == 'type':
+                                # Type already set during object creation
+                                pass
+                            elif prop_name == 'position':
+                                # Parse position tuple
+                                if prop_value.startswith('(') and prop_value.endswith(')'):
+                                    coords = prop_value[1:-1].split(',')
+                                    obj.position = (int(coords[0].strip()), int(coords[1].strip()))
+                            elif prop_name == 'locked':
+                                if hasattr(obj, 'locked'):
+                                    obj.locked = prop_value.lower() == 'true'
+                            elif prop_name == 'key_required':
+                                if hasattr(obj, 'key_required'):
+                                    obj.key_required = prop_value
+                            elif prop_name == 'items_on_top':
+                                if hasattr(obj, 'items_on_top'):
+                                    # Parse list of items
+                                    if prop_value.startswith('[') and prop_value.endswith(']'):
+                                        items_str = prop_value[1:-1]
+                                        if items_str:
+                                            obj.items_on_top = [item.strip().strip("'\"") for item in items_str.split(',')]
+                            elif prop_name == 'description':
+                                obj.description = prop_value
                     i += 1
                 continue
         elif '.' in line and ':' in line and not parsing_objects and not parsing_properties:
@@ -151,7 +157,6 @@ def parse_script(path: str):
         i += 1
 
     return scenes
-
 
 def draw_layout(surface, fonts, state):
     # Backgrounds
@@ -281,113 +286,169 @@ def draw_layout(surface, fonts, state):
             text_y = STATUS_RECT.y + 6
             surface.blit(text_surface, (text_x, text_y))
 
+def execute_multi_item_action(action, item_obj, target_obj, game_state):
+    """Execute actions that involve two objects (Give, Use, etc.)"""
+    
+    if action == "Use":
+        # Handle "Use X with Y" actions
+        
+        # Use key with door
+        if (hasattr(item_obj, 'id') and item_obj.id.startswith('x') and 
+            hasattr(target_obj, 'id') and target_obj.id.startswith('x')):
+            
+            # Key with Door
+            if (isinstance(item_obj, Key) and isinstance(target_obj, Door)):
+                if target_obj.locked and target_obj.key_required == item_obj.id:
+                    target_obj.locked = False
+                    return f"Vous utilisez {item_obj.name} pour déverrouiller {target_obj.name}."
+                elif target_obj.locked:
+                    return f"{item_obj.name} ne fonctionne pas avec cette {target_obj.name}."
+                else:
+                    return f"{target_obj.name} n'est pas verrouillée."
+            
+            # Door with Key (reverse order)
+            elif (isinstance(target_obj, Key) and isinstance(item_obj, Door)):
+                if item_obj.locked and item_obj.key_required == target_obj.id:
+                    item_obj.locked = False
+                    return f"Vous utilisez {target_obj.name} pour déverrouiller {item_obj.name}."
+                elif item_obj.locked:
+                    return f"{target_obj.name} ne fonctionne pas avec cette {item_obj.name}."
+                else:
+                    return f"{item_obj.name} n'est pas verrouillée."
+        
+        # Generic use action
+        return f"Vous essayez d'utiliser {item_obj.name} avec {target_obj.name}, mais rien ne se passe."
+    
+    elif action == "Give":
+        # Handle "Give X to Y" actions
+        return f"Vous essayez de donner {item_obj.name} à {target_obj.name}, mais {target_obj.name} n'en veut pas."
+    
+    return f"Action {action} non supportée entre {item_obj.name} et {target_obj.name}."
 
 def handle_mouse(pos, state):
-    x, y = pos
-
-    # check action cells first: clicking an action starts a pending action
+    """Handle mouse clicks for actions and object interactions."""
+    
+    # Check if clicking on action buttons
     for idx, rect in state.get('_action_rects', {}).items():
         if rect.collidepoint(pos):
-            verb = ACTION_VERBS[idx]
-            state['pending_action'] = verb
-            state['status'] = f"{verb} (choisissez une cible)"
-            state['message'] = ''
-            print('Pending action set to', verb)
-            return
-
-    # check scene sprite clicks
-    for obj_id, rect in state.get('_scene_sprite_rects', {}).items():
-        if rect.collidepoint(pos):
-            scene = state.get('current_scene_obj')
-            obj = scene['objects'][obj_id]
+            action = ACTION_VERBS[idx]
             
-            # if we have a pending action, execute it on this object
-            if state.get('pending_action'):
-                verb = state.pop('pending_action')
-                
-                # Check if the object can perform this action
-                if obj.can_interact(verb, state):
-                    # Use the object's perform_action method
-                    msg = obj.perform_action(verb, state)
-                    
-                    # Special handling for pick up
-                    if verb == 'Pick up' and obj_id in scene.get('objects', {}):
-                        objname = obj.name
-                        state.setdefault('inventory', []).append({'id': obj_id, 'name': objname})
-                        # Remove from scene
-                        del scene['objects'][obj_id]
-                        # Remove from sprite rects
-                        if obj_id in state.get('_scene_sprite_rects', {}):
-                            del state['_scene_sprite_rects'][obj_id]
+            # Handle multi-item actions (Give, Use)
+            if action in ['Give', 'Use']:
+                if 'pending_item' not in state:
+                    state['pending_item'] = None
+                    state['pending_action'] = action
+                    state['message'] = f"Sélectionnez un objet pour '{action}'..."
+                    return
                 else:
-                    # Provide specific error messages based on the action and object state
-                    if verb == "Open" and hasattr(obj, 'state') and obj.state == "open":
-                        msg = f"La {obj.name} est déjà ouverte."
-                    elif verb == "Close" and hasattr(obj, 'state') and obj.state == "closed":
-                        msg = f"La {obj.name} est déjà fermée."
-                    elif verb == "Lock" and hasattr(obj, 'locked') and obj.locked:
-                        msg = f"La {obj.name} est déjà verrouillée."
-                    elif verb == "Unlock" and hasattr(obj, 'locked') and not obj.locked:
-                        msg = f"La {obj.name} n'est pas verrouillée."
-                    elif verb == "Pick up" and hasattr(obj, 'state') and obj.state != "on_ground":
-                        msg = f"La {obj.name} n'est pas disponible à ramasser."
-                    else:
-                        msg = f"Vous ne pouvez pas {verb.lower()} {obj.name}."
+                    # Second click - execute the action
+                    pending_item = state['pending_item']
+                    pending_action = state['pending_action']
                     
-                state['message'] = msg
-                state['status'] = ''
-                print('Action', verb, 'on', obj_id, '->', msg)
+                    # Find the target object at click position
+                    target_obj = None
+                    scene_objects = state.get('current_scene_obj', {}).get('objects', {})
+                    for obj_id, obj in scene_objects.items():
+                        if obj.position and pygame.Rect(obj.position[0]-25, obj.position[1]-25, 50, 50).collidepoint(pos):
+                            target_obj = obj
+                            break
+                    
+                    if target_obj and pending_item:
+                        # Execute multi-item action
+                        message = execute_multi_item_action(pending_action, pending_item, target_obj, state)
+                        state['message'] = message
+                    else:
+                        state['message'] = "Sélection invalide pour l'action multi-objets."
+                    
+                    # Clear pending state
+                    state.pop('pending_item', None)
+                    state.pop('pending_action', None)
+                    return
+            
+            # Handle single-item actions
+            else:
+                # Check if there's a selected object to apply the action to
+                selected_obj = state.get('selected_object')
+                if selected_obj:
+                    if selected_obj.can_interact(action, state):
+                        message = selected_obj.perform_action(action, state)
+                        state['message'] = message
+                    else:
+                        state['message'] = f"Vous ne pouvez pas {action.lower()} {selected_obj.name}."
+                    # Clear selection after use
+                    state['selected_object'] = None
+                else:
+                    # No object selected, set this as the selected action for next object click
+                    state['selected_action'] = action
+                    state['message'] = f"Action '{action}' sélectionnée. Cliquez sur un objet."
                 return
-
-            # otherwise just select the object
-            state['selected_object'] = obj_id
-            state['message'] = f"Objet sélectionné: {obj.name}"
-            print('Selected object', obj_id)
-            return
-
-    # check inventory clicks
+    
+    # Check if clicking on inventory items
     for idx, rect in state.get('_inv_rects', {}).items():
         if rect.collidepoint(pos):
-            inv = state.get('inventory', [])
-            if idx < len(inv):
-                item = inv[idx]
-                # if pending action, execute it on inventory item
-                if state.get('pending_action'):
-                    verb = state.pop('pending_action')
-                    scene = state.get('current_scene')
-                    # use id for key
-                    key = f"{item['id']}.{verb}"
-                    msg = "Rien ne se passe."
-                    if scene and key in scene.get('actions', {}):
-                        action = scene['actions'][key]
-                        if isinstance(action, dict):
-                            reqs = action.get('requires', [])
-                            inv_ids = [it['id'] for it in state.get('inventory', [])]
-                            missing = [r for r in reqs if r not in inv_ids]
-                            if missing:
-                                msg = f"Il vous manque: {', '.join(missing)}"
-                            else:
-                                msg = action.get('text', '')
-                        else:
-                            msg = action
-                    state['message'] = msg
-                    state['status'] = ''
-                    print('Action', verb, 'on inventory', item['name'], '->', msg)
+            if idx < len(state.get('inventory', [])):
+                item = state['inventory'][idx]
+                # Get object from current scene objects
+                scene_objects = state.get('current_scene_obj', {}).get('objects', {})
+                obj = scene_objects.get(item['id'])
+                
+                # Handle pending multi-item action
+                if 'pending_action' in state and state['pending_action'] in ['Give', 'Use']:
+                    if state.get('pending_item') is None:
+                        state['pending_item'] = obj
+                        state['message'] = f"Sélectionnez une cible pour '{state['pending_action']}' {obj.name}..."
+                    else:
+                        # Execute multi-item action
+                        message = execute_multi_item_action(state['pending_action'], state['pending_item'], obj, state)
+                        state['message'] = message
+                        # Clear pending state
+                        state.pop('pending_item', None)
+                        state.pop('pending_action', None)
                     return
-
-                # clicking inventory without pending action - just print for debug
-                print('Clicked inventory item:', item['name'])
+                
+                # Handle single-item actions on inventory
+                action = state.get('selected_action', 'Look at')
+                if obj and obj.can_interact(action, state):
+                    message = obj.perform_action(action, state)
+                    state['message'] = message
+                else:
+                    state['message'] = f"Vous ne pouvez pas {action.lower()} {obj.name if obj else 'cet objet'}."
             return
-
-    # click elsewhere
-    if SCENE_RECT.collidepoint(pos):
-        state['message'] = ''
-        state['selected_object'] = None
-        # clicking background without pending action clears status
-        if not state.get('pending_action'):
-            state['status'] = ''
-        print('Clicked scene at', pos)
-
+    
+    # Check if clicking on scene objects
+    scene_objects = state.get('current_scene_obj', {}).get('objects', {})
+    for obj_id, obj in scene_objects.items():
+        if obj.position and pygame.Rect(obj.position[0]-25, obj.position[1]-25, 50, 50).collidepoint(pos):
+            # Handle pending multi-item action
+            if 'pending_action' in state and state['pending_action'] in ['Give', 'Use']:
+                if state.get('pending_item') is None:
+                    state['pending_item'] = obj
+                    state['message'] = f"Sélectionnez une cible pour '{state['pending_action']}' {obj.name}..."
+                else:
+                    # Execute multi-item action
+                    message = execute_multi_item_action(state['pending_action'], state['pending_item'], obj, state)
+                    state['message'] = message
+                    # Clear pending state
+                    state.pop('pending_item', None)
+                    state.pop('pending_action', None)
+                return
+            
+            # Handle single-item actions
+            action = state.get('selected_action', 'Look at')
+            if obj.can_interact(action, state):
+                message = obj.perform_action(action, state)
+                state['message'] = message
+                # Clear selected action after use
+                state.pop('selected_action', None)
+            else:
+                state['message'] = f"Vous ne pouvez pas {action.lower()} {obj.name}."
+            return
+    
+    # Clear pending action if clicking elsewhere
+    if 'pending_action' in state:
+        state.pop('pending_item', None)
+        state.pop('pending_action', None)
+        state['message'] = "Action annulée."
 
 def main():
     pygame.init()
