@@ -7,7 +7,6 @@
 #   desc: Description affichée dans la zone scène
 #   objects: liste d'objets définis par 'id: Nom'
 #   actions: pour chaque objet, lignes 'objet_id.action_nom: résultat' où action_nom est l'un des verbes ci-dessus
-# Exemple minimal ci-dessous
 
 ## hall
 title: Le grand hall
