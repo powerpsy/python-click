@@ -1,0 +1,34 @@
+# Script du jeu (édition simple)
+
+# Format du fichier :
+# - Scenes séparées par une ligne commençant par '## ' suivie d'un identifiant
+# - Chaque scène contient :
+#   title: Titre lisible
+#   desc: Description affichée dans la zone scène
+#   objects: liste d'objets définis par 'id: Nom'
+#   actions: pour chaque objet, lignes 'objet_id.action_nom: résultat' où action_nom est l'un des verbes ci-dessus
+# Exemple minimal ci-dessous
+
+## hall
+title: Le grand hall
+desc: Vous êtes dans un hall faiblement éclairé. Une porte en bois se dresse au nord. Une table en bois occupe le centre, et il y a une clé posée dessus.
+objects:
+  porte: Porte en bois
+  table: Table ancienne
+  clef: Petite clé en laiton
+
+# Actions pour les objets (format objet.action: résultat texte)
+porte.Open: La porte grince et s'ouvre, révélant un couloir sombre.
+porte.Close: La porte se ferme lentement.
+
+# Exemple d'action nécessitant un objet (clé id='key') :
+porte.Open [requires: key]: La porte grince et s'ouvre ; la clé a permis de la déverrouiller.
+porte.Close: La porte se ferme lentement.
+porte.Lock: La porte est verrouillée. (Remarque: 'Lock' n'est pas dans les 9 verbes, utilisez 'Close' ou 'Use' avec une clé)
+
+table.Look at: Une table couverte de gravures usées. Il y a quelque chose dessus.
+clef.Pick up: Vous prenez la petite clé en laiton. Elle va dans votre inventaire.
+
+clef.Use: Vous essayez d'utiliser la clé sur la porte ; si vous la possédez, la porte se déverrouille.
+
+# Fin du script d'exemple. Ajoutez d'autres scènes et règles au même format.
