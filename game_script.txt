@@ -1,0 +1,54 @@
+# Script de jeu naturel - Solution du jeu
+# Format: Action -> Résultat [Prérequis optionnels]
+
+# === Configuration de la scène ===
+SCENE hall "Hall d'entrée"
+  OBJECT door "Porte en bois" at (500, 300) [locked, key_required=key]
+  OBJECT table "Table ancienne" at (300, 350) [hiding=key]
+  OBJECT key "Petite clé en laiton" at (300, 370) [hidden]
+
+# === Solution du jeu (actions possibles) ===
+
+# 1. Observer la table révèle qu'elle est bancale
+ACTION regarder table -> "Une table bancale qui semble instable."
+
+# 2. Déplacer la table révèle la clé
+ACTION pousser table -> "Vous poussez la table. En la déplaçant, vous découvrez une petite clé en laiton qui était cachée dessous !"
+  EFFECTS:
+    - SHOW key
+    - SET table.description "C est une table."
+    - SET table.has_been_moved true
+
+# Ou bien tirer la table (même effet)
+ACTION tirer table -> "Vous tirez la table. En la déplaçant, vous découvrez une petite clé en laiton qui était cachée dessous !"
+  EFFECTS:
+    - SHOW key  
+    - SET table.description "C est une table."
+    - SET table.has_been_moved true
+
+# 3. Prendre la clé (prérequis: table déplacée)
+ACTION prendre key -> "Vous prenez la clé en laiton."
+  REQUIRES: table.has_been_moved = true
+  EFFECTS:
+    - ADD_TO_INVENTORY key
+    - HIDE key
+
+# 4. Utiliser la clé sur la porte (prérequis: avoir la clé)
+ACTION utiliser key door -> "Vous utilisez la clé pour déverrouiller la porte. Elle est maintenant fermée mais déverrouillée."
+  REQUIRES: key IN inventory
+  EFFECTS:
+    - SET door.locked false
+
+# 5. Ouvrir la porte (prérequis: porte déverrouillée)
+ACTION ouvrir door -> "La porte s'ouvre, révélant un couloir sombre."
+  REQUIRES: door.locked = false
+  EFFECTS:
+    - SET door.state "open"
+    - WIN_GAME
+
+# === Actions interdites avec messages personnalisés ===
+FORBIDDEN parler door -> "Vous ne pouvez pas parler à une porte."
+FORBIDDEN prendre table -> "La table est trop lourde pour être prise."
+
+# === Actions par défaut pour objets non listés ===
+DEFAULT -> "Cela n'a pas d'effet."

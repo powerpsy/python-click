@@ -1,5 +1,5 @@
 """
-Base entity class for all game objects
+Base entity class for all game objects (entity size 90x58px)
 """
 
 import pygame
@@ -39,9 +39,13 @@ class BaseEntity:
         self.components: Dict[str, Component] = {}
 
         # Entity state
-        self.visible = True
-        self.interactive = True
+        self.visible = properties.get('visible', True)
+        self.interactive = properties.get('interactive', True)
         self.state = properties.get('state', 'default')
+
+        # Action system - to be overridden in subclasses
+        self.allowed_actions = {}  # Dict[str, callable] - action_name: method or message
+        self.forbidden_actions = {}  # Dict[str, str] - action_name: denial_message
 
         # Visual properties
         width = properties.get('width', 50)
@@ -113,6 +117,22 @@ class BaseEntity:
         Perform an action on this entity
         Returns a message to display, or None to show message above entity
         """
+        # Check if action is explicitly forbidden
+        if action in self.forbidden_actions:
+            self._show_message_above(self.forbidden_actions[action], game_context)
+            return None
+        
+        # Check if action is explicitly allowed
+        if action in self.allowed_actions:
+            action_handler = self.allowed_actions[action]
+            if callable(action_handler):
+                # Call the method
+                return action_handler(game_context)
+            else:
+                # Show the message
+                self._show_message_above(str(action_handler), game_context)
+                return None
+        
         # Default implementation - show random message for unsupported actions
         random_messages = [
             "Cela n'a pas d'effet.",

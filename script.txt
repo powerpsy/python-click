@@ -22,11 +22,13 @@ object_properties:
   x0002:
     type: table
     position: (300, 350)
-    items_on_top: [x0003]
+    items_underneath: [x0003]  # Clé cachée SOUS la table
+    has_been_moved: false      # Table pas encore déplacée
   x0003:
     type: key
-    position: (300, 320)
+    position: (300, 370)       # Position près de la table
     description: petite clé en laiton brillant
+    visible: false             # Invisible au début, cachée sous la table
 
 # Actions pour les objets (format objet.action: résultat texte)
 x0001.Open: La porte grince et s'ouvre, révélant un couloir sombre.

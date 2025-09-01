@@ -96,3 +96,173 @@
 2025-08-31 23:25:19,720 - GameLogger - INFO - Jeu terminé
 2025-08-31 23:26:58,723 - GameLogger - INFO - Démarrage du jeu
 2025-08-31 23:27:38,069 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:29:25,535 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:29:44,987 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:31:06,188 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:31:08,353 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:31:25,191 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:31:26,193 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:31:33,292 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:31:39,736 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:35:26,778 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:35:47,295 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:36:11,583 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:37:31,459 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:37:39,680 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:38:05,301 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:41:05,220 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:41:27,196 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:43:16,678 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:43:24,423 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:47:21,807 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:48:01,060 - GameLogger - INFO - Jeu terminé
+2025-09-01 20:55:26,561 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 20:57:21,508 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:01:40,578 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:01:41,440 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:01:46,823 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:04:21,703 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:04:53,078 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:09:26,491 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:09:55,185 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:09:56,565 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:10:23,694 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:10:51,984 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:18:12,740 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:19:41,416 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:20:03,835 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:23:16,343 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:23:56,311 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:24:38,393 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:24:49,643 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:25:11,741 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:28:04,518 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:28:05,585 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:30:56,469 - GameLogger - ERROR - Error creating entity x0002: Table.__init__() got an unexpected keyword argument 'has_been_moved'
+2025-09-01 21:30:56,469 - GameLogger - ERROR - Error creating entity x0003: Key.__init__() got an unexpected keyword argument 'visible'
+2025-09-01 21:30:56,469 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:31:03,498 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:32:10,367 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:33:02,167 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:43:00,169 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 21:43:00,169 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:43:07,795 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:47:49,543 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 21:47:49,543 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:47:52,753 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:49:06,249 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 21:49:06,249 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:50:43,609 - GameLogger - INFO - Jeu interrompu par l'utilisateur
+2025-09-01 21:50:43,610 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:50:43,921 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 21:50:43,922 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:51:02,231 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:51:03,553 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 21:51:03,553 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:55:28,188 - GameLogger - INFO - Jeu terminé
+2025-09-01 21:56:30,755 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 21:56:30,755 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 21:57:06,902 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:01:13,161 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:01:13,162 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:01:26,635 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:02:36,218 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:02:36,218 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:04:19,544 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:04:19,544 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:06:33,386 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:06:35,340 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:06:35,340 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:07:10,949 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:07:10,949 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:07:33,710 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:07:34,864 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:07:35,890 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:07:42,144 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:07:42,144 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:08:15,492 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:08:16,537 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:08:16,537 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:08:40,358 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:10:35,899 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:10:35,899 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:10:41,743 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:11:54,281 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:11:54,281 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:11:57,721 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:14:07,554 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:14:07,554 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:14:17,483 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:15:03,369 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:15:03,370 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:15:05,935 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:15:29,688 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:15:29,688 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:15:50,470 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:16:20,406 - GameLogger - ERROR - Error creating entity door: Door.__init__() got an unexpected keyword argument 'visible'
+2025-09-01 22:16:20,406 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:16:20,406 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:16:54,774 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:17:41,302 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:17:41,303 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:18:22,768 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:19:50,775 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:19:50,775 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:20:17,546 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:23:40,410 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:23:40,410 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:24:12,469 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:24:37,362 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:24:37,362 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:24:55,391 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:25:50,848 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:25:50,848 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:26:09,330 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:26:43,423 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:26:43,423 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:27:04,828 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:27:42,760 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:27:42,760 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:27:55,355 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:32:51,667 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:32:51,667 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:33:04,900 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:33:20,583 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:33:20,583 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:33:23,275 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:35:30,191 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:35:30,191 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:36:29,908 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:37:00,059 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:37:00,059 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:37:23,688 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:41:02,062 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:41:02,063 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:43:40,727 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:45:35,937 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:45:35,937 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:46:32,152 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:46:41,153 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:46:41,153 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:47:09,221 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:47:19,428 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:47:19,428 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:47:36,104 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:48:07,397 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:48:07,397 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:48:44,754 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:48:46,385 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:48:46,385 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:49:17,959 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:49:19,672 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:49:19,673 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:49:44,175 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:49:44,175 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:49:57,058 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:49:59,324 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:50:11,357 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:50:11,357 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:50:47,528 - GameLogger - INFO - Jeu terminé
+2025-09-01 22:51:22,109 - GameLogger - INFO - Loaded natural script successfully
+2025-09-01 22:51:22,109 - GameLogger - INFO - Démarrage du jeu
+2025-09-01 22:51:54,128 - GameLogger - INFO - Jeu terminé

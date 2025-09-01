@@ -1,6 +1,6 @@
 """
 Scene Module
-Gestion d'une scène du jeu avec ses entités
+Gestion d'une scène du jeu avec ses entités (une scene est une image 800x450)
 """
 
 import pygame
@@ -16,7 +16,7 @@ class Scene:
         self.game = game
         self.scene_data = scene_data
         self.entities = []
-        self.background_color = (135, 206, 235)  # Sky blue
+        self.background_color = (75, 126, 165)  # Sky blue
 
         # Créer les entités à partir des données de scène
         self.setup_entities()
@@ -171,19 +171,57 @@ class Scene:
                 # Mettre à jour quelques informations spécifiques à cette interaction
                 context['current_scene_obj'] = {'objects': {e.id: e for e in self.entities}}
 
-                message = entity.on_click(action, context)
-                
-                # Désélectionner l'action après exécution
-                if action and hasattr(self.game, 'interface') and self.game.interface:
-                    self.game.interface.selected_action = None
-                    context['selected_action'] = None
-                
-                if message:
-                    # Ajouter une notification au-dessus de l'entité
-                    self.game.notification_system.add_action_message(
-                        message, (entity.bounding_box.centerx, entity.bounding_box.top)
-                    )
-                return True
+                # Vérifier d'abord si le moteur de script naturel peut gérer cette action
+                if hasattr(self.game, 'script_engine') and self.game.script_engine:
+                    script_action = self.game.script_engine.find_action(action.lower(), entity.id)
+                    if script_action:
+                        # Vérifier les prérequis
+                        if self.game.script_engine.check_action_requirements(script_action):
+                            # Afficher le message de l'action
+                            self._show_message_above(script_action.message, entity, context)
+                            # Exécuter les effets
+                            self.game.script_engine.execute_action_effects(script_action)
+                            # Nettoyer les sélections d'interface après l'exécution réussie
+                            if hasattr(self.game, 'interface') and self.game.interface:
+                                self.game.interface.clear_selections()
+                        else:
+                            # Action trouvée mais prérequis non remplis - chercher une action interdite spécifique
+                            forbidden_msg = self.game.script_engine.get_forbidden_message_for_failed_requirements(action.lower(), entity.id)
+                            if forbidden_msg:
+                                self._show_message_above(forbidden_msg, entity, context)
+                            else:
+                                self._show_message_above("Vous ne pouvez pas faire cela pour le moment.", entity, context)
+                        return  # Ne pas passer au système classique
+                    else:
+                        # Vérifier si c'est une action interdite
+                        forbidden_msg = self.game.script_engine.get_forbidden_message(action.lower(), entity.id)
+                        if forbidden_msg:
+                            self._show_message_above(forbidden_msg, entity, context)
+                            return  # Ne pas passer au système classique
+                        else:
+                            # Fallback vers le système d'entités classique
+                            message = entity.on_click(action, context)
+                            # Nettoyer les sélections après l'action classique
+                            if hasattr(self.game, 'interface') and self.game.interface:
+                                self.game.interface.clear_selections()
+                else:
+                    # Système classique si pas de moteur de script
+                    message = entity.on_click(action, context)
+                    # Nettoyer les sélections après l'action classique
+                    if hasattr(self.game, 'interface') and self.game.interface:
+                        self.game.interface.clear_selections()
+
+    def _show_message_above(self, message: str, entity, context: Dict[str, Any], duration: int = 3000):
+        """Affiche un message au-dessus d'une entité"""
+        if 'temp_descriptions' not in context:
+            context['temp_descriptions'] = []
+
+        context['temp_descriptions'].append({
+            'text': message,
+            'position': entity.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
         return False
 
     def handle_hover(self, pos):

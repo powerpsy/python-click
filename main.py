@@ -75,10 +75,35 @@ class PointClickGame(Game):
         self.event_system.add_handler(pygame.KEYDOWN, self._handle_key_press)
 
     def load_scenes_from_script(self):
-        """Charger les scènes depuis script.txt"""
+        """Charger les scènes depuis le script naturel"""
+        # Essayer d'abord le nouveau script naturel
+        natural_script_path = os.path.join(os.path.dirname(__file__), 'game_script.txt')
+        if os.path.exists(natural_script_path):
+            try:
+                from natural_script_engine import NaturalScriptEngine
+                self.script_engine = NaturalScriptEngine(self.context)
+                scenes_data = self.script_engine.parse_script(natural_script_path)
+                
+                for scene_id, scene_data in scenes_data.items():
+                    scene = Scene(self, scene_data)
+                    self.scene_manager.scenes[scene_id] = scene
+
+                # Définir la scène actuelle
+                if 'hall' in self.scene_manager.scenes:
+                    self.scene_manager.current_scene = self.scene_manager.scenes['hall']
+                    self.context['current_scene'] = self.scene_manager.current_scene
+                
+                logger = get_logger()
+                logger.info("Loaded natural script successfully")
+                return
+            except Exception as e:
+                logger = get_logger()
+                logger.error(f"Error loading natural script: {e}")
+        
+        # Fallback vers l'ancien système
         script_path = os.path.join(os.path.dirname(__file__), 'script.txt')
         if not os.path.exists(script_path):
-            # Créer une scène par défaut si script.txt n'existe pas
+            # Créer une scène par défaut si aucun script n'existe
             self.create_default_scene()
             return
 
@@ -170,18 +195,20 @@ class PointClickGame(Game):
                 'key_required': 'x0003'
             }
         elif obj_id == 'x0002' and obj_type == 'table':
-            # Table avec la clé dessus
+            # Table avec la clé cachée dessous
             return {
                 'width': 96,
                 'height': 64,
-                'items_on_top': ['x0003']
+                'items_underneath': ['x0003'],  # Clé cachée SOUS la table
+                'has_been_moved': False
             }
         elif obj_id == 'x0003' and obj_type == 'key':
-            # Clé
+            # Clé cachée sous la table, invisible au début
             return {
                 'width': 32,
                 'height': 32,
-                'description': 'petite clé en laiton brillant'
+                'description': 'petite clé en laiton brillant',
+                'visible': False  # Invisible au début
             }
         else:
             return {}
@@ -208,10 +235,11 @@ class PointClickGame(Game):
                     'id': 'key_001',
                     'name': 'Clé en laiton',
                     'type': 'key',
-                    'position': (500, 350),
+                    'position': (170, 350),  # Position près de la table
                     'properties': {
                         'width': 32,
-                        'height': 32
+                        'height': 32,
+                        'visible': False  # Invisible au début, cachée sous la table
                     }
                 },
                 {
@@ -222,7 +250,7 @@ class PointClickGame(Game):
                     'properties': {
                         'width': 96,
                         'height': 64,
-                        'items_on_top': ['key_001']
+                        'items_underneath': ['key_001']  # Clé cachée SOUS la table
                     }
                 }
             ]
@@ -281,9 +309,43 @@ class PointClickGame(Game):
                         self.context['selected_action'] = None
                         self.context['status'] = ""
         else:
-            # Gérer les clics UI
+            # Gérer les clics UI et inventaire
             if self.interface:
-                self.interface.handle_click(pos, self.context)
+                # Vérifier d'abord si c'est un clic sur l'inventaire
+                clicked_inventory_item = self.interface.get_clicked_inventory_item(pos, self.context)
+                
+                if clicked_inventory_item:
+                    # Clic sur un objet d'inventaire
+                    if self.interface.selected_action in self.interface.two_object_actions:
+                        # Action à deux objets avec inventaire
+                        if self.interface.first_object is None:
+                            # Premier objet sélectionné depuis l'inventaire - créer un objet temporaire
+                            self.interface.first_object = self._create_inventory_entity(clicked_inventory_item)
+                            preposition = "à" if self.interface.selected_action == "Donner" else "avec"
+                            self.context['status'] = f"{self.interface.selected_action} {clicked_inventory_item['name']} {preposition}"
+                        else:
+                            # Deuxième objet sélectionné depuis l'inventaire - exécuter l'action
+                            second_obj = self._create_inventory_entity(clicked_inventory_item)
+                            self._execute_two_object_action(
+                                self.interface.selected_action,
+                                self.interface.first_object,
+                                second_obj
+                            )
+                            # Reset l'état
+                            self.interface.selected_action = None
+                            self.interface.first_object = None
+                            self.context['selected_action'] = None
+                            self.context['status'] = ""
+                    elif self.interface.selected_action:
+                        # Action à un objet sur un objet d'inventaire
+                        temp_entity = self._create_inventory_entity(clicked_inventory_item)
+                        self._execute_inventory_action(self.interface.selected_action, temp_entity)
+                        # Reset l'action après exécution
+                        self.interface.selected_action = None
+                        self.context['selected_action'] = None
+                else:
+                    # Pas de clic sur l'inventaire, gérer les autres clics UI
+                    self.interface.handle_click(pos, self.context)
 
     def _get_clicked_entity(self, pos):
         """Trouve l'entité cliquée à la position donnée"""
@@ -292,6 +354,64 @@ class PointClickGame(Game):
                 if entity.visible and entity.bounding_box.collidepoint(pos):
                     return entity
         return None
+
+    def _create_inventory_entity(self, inventory_item):
+        """Crée une entité du bon type à partir d'un objet d'inventaire"""
+        from entities import Door, Key, Table, Box, BaseEntity
+        
+        item_id = inventory_item['id']
+        item_name = inventory_item['name']
+        
+        # Créer l'entité selon son type (identique aux entités de la scène)
+        if 'clé' in item_name.lower() or 'key' in item_id.lower():
+            entity = Key(
+                entity_id=item_id,
+                name=item_name,
+                position=(0, 0),  # Position arbitraire pour l'inventaire
+                width=32,
+                height=32
+            )
+        elif 'porte' in item_name.lower() or 'door' in item_id.lower():
+            entity = Door(
+                entity_id=item_id,
+                name=item_name,
+                position=(0, 0),
+                width=64,
+                height=128
+            )
+        elif 'table' in item_name.lower():
+            entity = Table(
+                entity_id=item_id,
+                name=item_name,
+                position=(0, 0),
+                width=96,
+                height=64
+            )
+        elif 'boîte' in item_name.lower() or 'box' in item_id.lower():
+            entity = Box(
+                entity_id=item_id,
+                name=item_name,
+                position=(0, 0),
+                width=48,
+                height=48
+            )
+        else:
+            # Entité générique
+            entity = BaseEntity(
+                entity_id=item_id,
+                name=item_name,
+                position=(0, 0),
+                width=32,
+                height=32
+            )
+        
+        # Marquer comme objet d'inventaire et configurer l'état
+        entity.from_inventory = True
+        entity.state = "in_inventory"
+        if hasattr(entity, 'properties'):
+            entity.properties['state'] = "in_inventory"
+        
+        return entity
 
     def _execute_two_object_action(self, action, first_obj, second_obj):
         """Exécute une action à deux objets"""
@@ -306,16 +426,30 @@ class PointClickGame(Game):
             if result:
                 self.context['status'] = result
 
+    def _execute_inventory_action(self, action, inventory_entity):
+        """Exécute une action à un objet sur un objet d'inventaire"""
+        
+        # Utiliser directement la méthode perform_action de l'entité
+        # Les entités spécialisées (Key, Door, Table) ont leurs propres implémentations
+        result = inventory_entity.perform_action(action, self.context)
+        
+        if result:
+            self.context['status'] = result
+
     def _handle_mouse_motion(self, event, context):
         """Gérer le mouvement de la souris"""
         pos = event.pos
         
         # Gérer le survol de l'interface (priorité aux boutons d'action)
         if self.interface:
-            self.interface.handle_hover(pos)
+            self.interface.handle_hover(pos, self.context)
             # Si une action est survolée, afficher son nom
             if self.interface.hovered_action:
                 self.context['status'] = self.interface.hovered_action
+                return
+            # Si un objet de l'inventaire est survolé, afficher son nom
+            elif self.interface.hovered_inventory_item:
+                self.context['status'] = self.interface.hovered_inventory_item
                 return
         
         # Vérifier si le survol est dans la scène pour les entités
@@ -353,7 +487,30 @@ class PointClickGame(Game):
                     else:
                         self.context['status'] = ""
         else:
-            # Hors de la scène, afficher l'état actuel
+            # Hors de la scène, vérifier l'inventaire
+            if self.interface:
+                hovered_item = self.interface.get_hovered_inventory_item(pos, self.context)
+                if hovered_item:
+                    # Gestion spéciale pour les actions à deux objets
+                    if self.interface.selected_action in self.interface.two_object_actions:
+                        if self.interface.first_object is None:
+                            # Premier objet à sélectionner depuis l'inventaire
+                            self.context['status'] = f"{self.interface.selected_action} {hovered_item}"
+                        else:
+                            # Le premier objet est déjà sélectionné, on survole un deuxième
+                            if self.interface.selected_action == "Donner":
+                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à {hovered_item}"
+                            else:  # Utiliser  
+                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec {hovered_item}"
+                    elif self.interface.selected_action:
+                        # Action normale à un objet
+                        self.context['status'] = f"{self.interface.selected_action} {hovered_item}"
+                    else:
+                        # Juste afficher le nom de l'objet survolé
+                        self.context['status'] = hovered_item
+                    return
+            
+            # Pas d'objet d'inventaire survolé, afficher l'état actuel
             if self.interface.selected_action and self.interface.first_object:
                 if self.interface.selected_action == "Donner":
                     self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à"
