@@ -101,11 +101,11 @@ ACTION use golden_key coffre -> "Vous déverrouillez le coffre avec la clé dor�
   EFFECTS:
     - SET coffre.locked false
 
-# 5. Ouvrir le coffre - Fin de jeu
-ACTION open coffre -> "Vous ouvrez le coffre, il contient l'objet de quête ! Bravo, vous l'avez trouvé !"
+# 5. Ouvrir le coffre - Passage à la scène 3
+ACTION open coffre -> "Vous ouvrez le coffre et découvrez un passage secret ! Une lumière mystérieuse vous attire..."
   REQUIRES: coffre.locked = false
   EFFECTS:
-    - SET game.won true
+    - CHANGE_SCENE treasure_chamber
 
 # === Actions pour la porte de retour ===
 # 6. Regarder la porte de retour
@@ -116,11 +116,79 @@ ACTION open return_door -> "Vous ouvrez la porte et retournez dans le hall."
   EFFECTS:
     - CHANGE_SCENE hall
 
+# === Configuration de la scène 3 - Chambre du trésor ===
+SCENE treasure_chamber "Chambre du trésor"
+  OBJECT crystal "Cristal magique" at (400, 300)
+  OBJECT ancient_book "Livre ancien" at (200, 350)
+  OBJECT pedestal "Piédestal" at (400, 320) 
+  OBJECT exit_portal "Portail de sortie" at (600, 250) [type:portal, inactive]
+  OBJECT mysterious_key "Clé mystérieuse" at (200, 370) [hidden]
+
+# === Solution du jeu - Scène 3 ===
+
+# 1. Regarder le livre révèle la clé mystérieuse
+ACTION look ancient_book -> "En ouvrant le livre, une clé mystérieuse tombe de ses pages !"
+  REQUIRES: ancient_book.opened != true
+  EFFECTS:
+    - SHOW mysterious_key
+    - SET ancient_book.opened true
+
+# 1b. Regarder le livre après ouverture
+ACTION look ancient_book -> "Un livre ancien aux pages jaunies. Vous avez déjà trouvé la clé qu'il cachait."
+  REQUIRES: ancient_book.opened = true
+
+# 2. Prendre la clé mystérieuse
+ACTION take mysterious_key -> "Vous prenez la clé mystérieuse. Elle pulse d'une lumière étrange."
+  EFFECTS:
+    - ADD_TO_INVENTORY mysterious_key
+    - HIDE mysterious_key
+
+# 3. Regarder le cristal
+ACTION look crystal -> "Un cristal magique qui brille d'une lumière bleue. Il semble faire partie du piédestal."
+
+# 4. Regarder le piédestal
+ACTION look pedestal -> "Un piédestal en pierre ancienne. Le cristal au sommet attend d'être activé."
+
+# 5. Utiliser la clé mystérieuse sur le cristal
+ACTION use mysterious_key crystal -> "La clé active le cristal ! Un portail s'ouvre, créant un passage vers l'extérieur !"
+  REQUIRES: mysterious_key IN inventory
+  EFFECTS:
+    - SET exit_portal.inactive false
+    - SET crystal.activated true
+
+# 6. Regarder le portail inactif
+ACTION look exit_portal -> "Un cercle de pierre gravé de symboles mystérieux. Il semble inactif."
+  REQUIRES: exit_portal.inactive = true
+
+# 6b. Regarder le portail activé
+ACTION look exit_portal -> "Un portail magique qui brille d'une lumière dorée. Il mène vers la liberté !"
+  REQUIRES: exit_portal.inactive = false
+
+# 7. Entrer dans le portail - Victoire finale
+ACTION enter exit_portal -> "Vous traversez le portail et émergez à l'extérieur ! Vous avez réussi à vous échapper ! Bravo !"
+  REQUIRES: exit_portal.inactive = false
+  EFFECTS:
+    - SET game.completed true
+
+# Actions alternatives pour le portail
+ACTION use exit_portal -> "Vous traversez le portail et émergez à l'extérieur ! Vous avez réussi à vous échapper ! Bravo !"
+  REQUIRES: exit_portal.inactive = false
+  EFFECTS:
+    - SET game.completed true
+
+ACTION open exit_portal -> "Vous traversez le portail et émergez à l'extérieur ! Vous avez réussi à vous échapper ! Bravo !"
+  REQUIRES: exit_portal.inactive = false
+  EFFECTS:
+    - SET game.completed true
+
 # === Actions interdites avec messages personnalisés ===
 FORBIDDEN talk door -> "Vous ne pouvez pas parler à une porte."
 FORBIDDEN take table -> "La table est trop lourde pour être prise."
 FORBIDDEN take buisson -> "Vous ne pouvez pas prendre un buisson."
 FORBIDDEN take fontaine -> "Vous ne pouvez pas prendre une fontaine."
+FORBIDDEN take crystal -> "Le cristal est fixé au piédestal."
+FORBIDDEN take pedestal -> "Le piédestal est trop lourd pour être déplacé."
+FORBIDDEN take ancient_book -> "Le livre semble collé à sa place par la magie."
 
 # === Actions par défaut pour objets non listés ===
 DEFAULT -> "Cela n'a pas d'effet."

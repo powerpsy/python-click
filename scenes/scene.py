@@ -77,6 +77,46 @@ class Scene:
                     position=position,
                     **properties
                 )
+            elif entity_type.lower() == 'crystal':
+                from entities.game_entities import Crystal
+                return Crystal(
+                    entity_id=entity_id,
+                    name=name,
+                    position=position,
+                    **properties
+                )
+            elif entity_type.lower() == 'ancient_book':
+                from entities.game_entities import AncientBook
+                return AncientBook(
+                    entity_id=entity_id,
+                    name=name,
+                    position=position,
+                    **properties
+                )
+            elif entity_type.lower() == 'pedestal':
+                from entities.game_entities import Pedestal
+                return Pedestal(
+                    entity_id=entity_id,
+                    name=name,
+                    position=position,
+                    **properties
+                )
+            elif entity_type.lower() == 'portal':
+                from entities.game_entities import ExitPortal
+                return ExitPortal(
+                    entity_id=entity_id,
+                    name=name,
+                    position=position,
+                    **properties
+                )
+            elif entity_type.lower() == 'mysterious_key':
+                from entities.game_entities import MysteriousKey
+                return MysteriousKey(
+                    entity_id=entity_id,
+                    name=name,
+                    position=position,
+                    **properties
+                )
             else:
                 # Entité générique
                 return BaseEntity(
@@ -194,7 +234,7 @@ class Scene:
                 context['current_scene_obj'] = {'objects': {e.id: e for e in self.entities}}
 
                 # Vérifier d'abord si le moteur de script naturel peut gérer cette action
-                if hasattr(self.game, 'script_engine') and self.game.script_engine:
+                if hasattr(self.game, 'script_engine') and self.game.script_engine and action:
                     script_action = self.game.script_engine.find_action(action.lower(), entity.id)
                     if script_action:
                         # Afficher le message de l'action
@@ -207,12 +247,12 @@ class Scene:
                         return  # Ne pas passer au système classique
                     else:
                         # Vérifier si c'est une action interdite
-                        forbidden_msg = self.game.script_engine.get_forbidden_message(action.lower(), entity.id)
-                        if forbidden_msg:
-                            self._show_message_above(forbidden_msg, entity, context)
-                            return  # Ne pas passer au système classique
-                        else:
-                            # Fallback vers le système d'entités classique
+                        if action:
+                            forbidden_msg = self.game.script_engine.get_forbidden_message(action.lower(), entity.id)
+                            if forbidden_msg:
+                                self._show_message_above(forbidden_msg, entity, context)
+                                return  # Ne pas passer au système classique
+                        # Fallback vers le système d'entités classique
                             message = entity.on_click(action, context)
                             # Nettoyer les sélections après l'action classique
                             if hasattr(self.game, 'interface') and self.game.interface:

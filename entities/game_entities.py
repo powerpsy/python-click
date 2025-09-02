@@ -637,6 +637,437 @@ class Coffre(BaseEntity):
             return key
 
 
+class Coffre(BaseEntity):
+    """Coffre entity for the garden scene"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 64, height: int = 48, locked: bool = True, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        self.locked = locked
+        self.properties.update({
+            'locked': locked
+        })
+
+        # Configure allowed actions for coffre
+        self.allowed_actions = {
+            "look": self._action_regarder,
+            "open": self._action_ouvrir
+        }
+
+        # Configure forbidden actions for coffre
+        self.forbidden_actions = {
+            "take": "Le coffre est trop lourd pour être pris.",
+            "push": "Le coffre ne bouge pas.",
+            "pull": "Vous n'arrivez pas à tirer le coffre."
+        }
+
+    def can_interact(self, action: str, game_context: Dict[str, Any]) -> bool:
+        """Check if the coffre can perform the given action"""
+        return self.interactive
+
+    def _action_regarder(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle examining the coffre"""
+        if self.locked:
+            description_text = "Un coffre ancien en bois. Il semble verrouillé."
+        else:
+            description_text = "Un coffre ancien en bois. Il est maintenant déverrouillé."
+        
+        self._show_message_above(description_text, game_context)
+        return None
+
+    def _action_ouvrir(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle opening the coffre"""
+        if self.locked:
+            self._show_message_above("Le coffre est verrouillé. Il faut d'abord le déverrouiller.", game_context)
+            return None
+        
+        # Coffre déverrouillé - changer de scène
+        self._show_message_above("Vous ouvrez le coffre et découvrez un passage secret ! Une lumière mystérieuse vous attire...", game_context, 4000)
+        
+        # Déclencher le changement de scène vers treasure_chamber
+        if hasattr(game_context.get('game'), 'scene_manager'):
+            scene_manager = game_context['game'].scene_manager
+            if 'treasure_chamber' in scene_manager.scenes:
+                scene_manager.current_scene = scene_manager.scenes['treasure_chamber']
+                game_context['current_scene'] = scene_manager.current_scene
+        
+        return None
+
+    def use_with(self, other_entity, game_context: Dict[str, Any]) -> Optional[str]:
+        """Use another entity with the coffre"""
+        if hasattr(other_entity, 'id') and 'golden_key' in other_entity.id:
+            # Utiliser la clé dorée pour déverrouiller
+            self.locked = False
+            self.properties['locked'] = False
+            self._show_message_above("Vous déverrouillez le coffre avec la clé dorée.", game_context)
+            return None
+        else:
+            self._show_message_above("Cet objet ne peut pas être utilisé avec le coffre.", game_context)
+            return None
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the coffre"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+
+# Nouvelles entités pour la scène 3
+class Crystal(BaseEntity):
+    """Crystal entity for the treasure chamber"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 48, height: int = 48, activated: bool = False, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        self.activated = activated
+        self.properties.update({
+            'activated': activated
+        })
+
+        # Configure allowed actions for crystal
+        self.allowed_actions = {
+            "look": self._action_regarder
+        }
+
+        # Configure forbidden actions for crystal
+        self.forbidden_actions = {
+            "take": "Le cristal est fixé au piédestal."
+        }
+
+    def _action_regarder(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle examining the crystal"""
+        if self.activated:
+            description_text = "Un cristal magique qui brille d'une intense lumière dorée. Il a été activé."
+        else:
+            description_text = "Un cristal magique qui brille d'une lumière bleue. Il semble faire partie du piédestal."
+        
+        self._show_message_above(description_text, game_context)
+        return None
+
+    def use_with(self, other_entity, game_context: Dict[str, Any]) -> Optional[str]:
+        """Use another entity with the crystal"""
+        if hasattr(other_entity, 'id') and 'mysterious_key' in other_entity.id:
+            # Activer le cristal avec la clé mystérieuse
+            self.activated = True
+            self.properties['activated'] = True
+            
+            # Activer le portail
+            scene = game_context.get('current_scene')
+            if scene:
+                for entity in scene.entities:
+                    if hasattr(entity, 'id') and 'exit_portal' in entity.id:
+                        entity.inactive = False
+                        entity.properties['inactive'] = False
+                        break
+            
+            self._show_message_above("La clé active le cristal ! Un portail s'ouvre, créant un passage vers l'extérieur !", game_context, 4000)
+            return None
+        else:
+            self._show_message_above("Cet objet ne peut pas être utilisé avec le cristal.", game_context)
+            return None
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the crystal"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+
+class AncientBook(BaseEntity):
+    """Ancient book entity for the treasure chamber"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 48, height: int = 32, opened: bool = False, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        self.opened = opened
+        self.properties.update({
+            'opened': opened
+        })
+
+        # Configure allowed actions for ancient book
+        self.allowed_actions = {
+            "look": self._action_regarder,
+            "open": self._action_ouvrir
+        }
+
+        # Configure forbidden actions for ancient book
+        self.forbidden_actions = {
+            "take": "Le livre semble collé à sa place par la magie."
+        }
+
+    def _action_regarder(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle examining the ancient book"""
+        if self.opened:
+            description_text = "Un livre ancien aux pages jaunies. Vous avez déjà trouvé la clé qu'il cachait."
+        else:
+            description_text = "Un livre ancien aux pages mystérieuses. Il pourrait cacher quelque chose..."
+        
+        self._show_message_above(description_text, game_context)
+        return None
+
+    def _action_ouvrir(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle opening the ancient book"""
+        if self.opened:
+            self._show_message_above("Vous avez déjà ouvert le livre et trouvé ce qu'il cachait.", game_context)
+            return None
+        
+        # Révéler la clé mystérieuse
+        self.opened = True
+        self.properties['opened'] = True
+        
+        # Révéler la clé dans la scène
+        scene = game_context.get('current_scene')
+        if scene:
+            for entity in scene.entities:
+                if hasattr(entity, 'id') and 'mysterious_key' in entity.id:
+                    entity.visible = True
+                    entity.properties['visible'] = True
+                    break
+        
+        self._show_message_above("En ouvrant le livre, une clé mystérieuse tombe de ses pages !", game_context, 4000)
+        return None
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the ancient book"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+
+class Pedestal(BaseEntity):
+    """Pedestal entity for the treasure chamber"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 48, height: int = 48, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        # Configure allowed actions for pedestal
+        self.allowed_actions = {
+            "look": self._action_regarder
+        }
+
+        # Configure forbidden actions for pedestal
+        self.forbidden_actions = {
+            "take": "Le piédestal est trop lourd pour être déplacé."
+        }
+
+    def _action_regarder(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle examining the pedestal"""
+        description_text = "Un piédestal en pierre ancienne. Le cristal au sommet attend d'être activé."
+        self._show_message_above(description_text, game_context)
+        return None
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the pedestal"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+
+class ExitPortal(BaseEntity):
+    """Exit portal entity for the treasure chamber"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 64, height: int = 96, inactive: bool = True, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        self.inactive = inactive
+        self.properties.update({
+            'inactive': inactive
+        })
+
+        # Configure allowed actions for exit portal
+        self.allowed_actions = {
+            "look": self._action_regarder,
+            "enter": self._action_entrer,
+            "use": self._action_entrer,
+            "open": self._action_entrer
+        }
+
+        # Configure forbidden actions for exit portal
+        self.forbidden_actions = {
+            "take": "Vous ne pouvez pas prendre un portail."
+        }
+
+    def _action_regarder(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle examining the exit portal"""
+        if self.inactive:
+            description_text = "Un cercle de pierre gravé de symboles mystérieux. Il semble inactif."
+        else:
+            description_text = "Un portail magique qui brille d'une lumière dorée. Il mène vers la liberté !"
+        
+        self._show_message_above(description_text, game_context)
+        return None
+
+    def _action_entrer(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle entering the exit portal"""
+        if self.inactive:
+            self._show_message_above("Le portail est inactif. Il faut d'abord l'activer.", game_context)
+            return None
+        
+        # Victoire ! Fin du jeu
+        self._show_message_above("Vous traversez le portail et émergez à l'extérieur ! Vous avez réussi à vous échapper ! Bravo !", game_context, 6000)
+        
+        # Marquer le jeu comme terminé
+        if 'game' in game_context:
+            game_context['game_completed'] = True
+        
+        return None
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the exit portal"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+
+class MysteriousKey(BaseEntity):
+    """Mysterious key entity for the treasure chamber"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 32, height: int = 32, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        self.state = "on_ground"
+        self.properties.update({
+            'state': self.state
+        })
+
+        # Configure allowed actions for mysterious key
+        self.allowed_actions = {
+            "take": self._action_prendre,
+            "look": self._action_regarder
+        }
+
+        # Configure forbidden actions for mysterious key
+        self.forbidden_actions = {
+            "talk": "La clé reste silencieuse.",
+            "eat": "Vous ne pouvez pas manger une clé magique !",
+        }
+
+    def _action_prendre(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle taking the mysterious key"""
+        if self.state != "on_ground":
+            self._show_message_above("La clé n'est pas disponible à ramasser.", game_context)
+            return None
+
+        self.state = "in_inventory"
+        self.properties['state'] = "in_inventory"
+        self.visible = False
+
+        # Add the key to the player's inventory
+        if 'inventory' not in game_context:
+            game_context['inventory'] = []
+        game_context['inventory'].append({
+            'id': self.id,
+            'name': self.name
+        })
+
+        self._show_message_above("Vous prenez la clé mystérieuse. Elle pulse d'une lumière étrange.", game_context, 3000)
+        return None
+
+    def _action_regarder(self, game_context: Dict[str, Any]) -> Optional[str]:
+        """Handle examining the mysterious key"""
+        description_text = "Une clé mystérieuse qui pulse d'une lumière magique. Elle semble très ancienne."
+        self._show_message_above(description_text, game_context)
+        return None
+
+    def use_with(self, other_entity, game_context: Dict[str, Any]) -> Optional[str]:
+        """Use mysterious key with another entity"""
+        if hasattr(other_entity, 'id') and 'crystal' in other_entity.id:
+            return other_entity.use_with(self, game_context)
+        else:
+            self._show_message_above("La clé mystérieuse ne peut pas être utilisée avec cet objet.", game_context)
+            return None
+
+    def _show_message_above(self, message: str, game_context: Dict[str, Any], duration: int = 2000) -> None:
+        """Helper method to show a message above the mysterious key"""
+        if 'temp_descriptions' not in game_context:
+            game_context['temp_descriptions'] = []
+
+        game_context['temp_descriptions'].append({
+            'text': message,
+            'position': self.position,
+            'start_time': pygame.time.get_ticks(),
+            'duration': duration
+        })
+
+
 # Factory function to create game entities
 def create_entity(entity_type: str, entity_id: str, name: str, **kwargs) -> BaseEntity:
     """Factory function to create game entities"""
@@ -654,6 +1085,16 @@ def create_entity(entity_type: str, entity_id: str, name: str, **kwargs) -> Base
         return Fontaine(entity_id, name, **kwargs)
     elif entity_type.lower() == "coffre":
         return Coffre(entity_id, name, **kwargs)
+    elif entity_type.lower() == "crystal":
+        return Crystal(entity_id, name, **kwargs)
+    elif entity_type.lower() == "ancient_book":
+        return AncientBook(entity_id, name, **kwargs)
+    elif entity_type.lower() == "pedestal":
+        return Pedestal(entity_id, name, **kwargs)
+    elif entity_type.lower() == "portal":
+        return ExitPortal(entity_id, name, **kwargs)
+    elif entity_type.lower() == "mysterious_key":
+        return MysteriousKey(entity_id, name, **kwargs)
     else:
         # Default to base entity
         return BaseEntity(entity_id, name, **kwargs)

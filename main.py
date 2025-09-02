@@ -453,7 +453,7 @@ class PointClickGame(Game):
             return
             
         # Vérifier d'abord si le moteur de script naturel peut gérer cette action
-        if hasattr(self, 'script_engine') and self.script_engine:
+        if hasattr(self, 'script_engine') and self.script_engine and action:
             script_action = self.script_engine.find_action(action.lower(), first_obj.id, second_obj.id)
             if script_action:
                 # Vérifier les prérequis
@@ -469,11 +469,12 @@ class PointClickGame(Game):
                     return
                 else:
                     # Action trouvée mais prérequis non remplis
-                    forbidden_msg = self.script_engine.get_forbidden_message_for_failed_requirements(action.lower(), second_obj.id)
-                    if forbidden_msg:
-                        self.context['status'] = forbidden_msg
-                    else:
-                        self.context['status'] = "Vous ne pouvez pas faire cela pour le moment."
+                    if action:
+                        forbidden_msg = self.script_engine.get_forbidden_message_for_failed_requirements(action.lower(), second_obj.id)
+                        if forbidden_msg:
+                            self.context['status'] = forbidden_msg
+                        else:
+                            self.context['status'] = "Vous ne pouvez pas faire cela pour le moment."
                     return
         
         # Fallback vers le système classique si le script engine ne gère pas l'action
