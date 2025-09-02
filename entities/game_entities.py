@@ -533,6 +533,110 @@ class Box(BaseEntity):
             self._show_message_above(message, game_context, duration)
 
 
+class Buisson(BaseEntity):
+    """Buisson entity for the garden scene"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 80, height: int = 60, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        # Configure allowed actions for buisson
+        self.allowed_actions = {
+            "look": self._get_localized_message("buisson_look"),
+            "push": self._get_localized_message("cannot_do_that"),
+            "pull": self._get_localized_message("cannot_do_that"),
+        }
+
+    def _get_localized_message(self, key: str) -> str:
+        """Get localized message for the given key"""
+        try:
+            from localization import get_localization_manager
+            loc = get_localization_manager()
+            return loc.get_message(key)
+        except:
+            return key
+
+
+class Fontaine(BaseEntity):
+    """Fontaine entity for the garden scene"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 96, height: int = 96, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        # Configure allowed actions for fontaine
+        self.allowed_actions = {
+            "look": self._get_localized_message("fontaine_look"),
+            "push": self._get_localized_message("cannot_do_that"),
+            "pull": self._get_localized_message("cannot_do_that"),
+        }
+
+    def _get_localized_message(self, key: str) -> str:
+        """Get localized message for the given key"""
+        try:
+            from localization import get_localization_manager
+            loc = get_localization_manager()
+            return loc.get_message(key)
+        except:
+            return key
+
+
+class Coffre(BaseEntity):
+    """Coffre entity for the garden scene"""
+
+    def __init__(self, entity_id: str, name: str, position: Optional[tuple] = None,
+                 width: int = 64, height: int = 48, locked: bool = True, **kwargs):
+        super().__init__(
+            entity_id=entity_id,
+            name=name,
+            position=position,
+            width=width,
+            height=height,
+            **kwargs
+        )
+
+        # Coffre-specific properties
+        self.locked = locked
+        self.state = "closed"
+
+        # Update properties dict
+        self.properties.update({
+            'locked': locked,
+            'state': self.state
+        })
+
+        # Configure allowed actions for coffre
+        self.allowed_actions = {
+            "open": self._get_localized_message("coffre_open"),
+            "look": self._get_localized_message("coffre_look"),
+            "push": self._get_localized_message("cannot_do_that"),
+            "pull": self._get_localized_message("cannot_do_that"),
+        }
+
+    def _get_localized_message(self, key: str) -> str:
+        """Get localized message for the given key"""
+        try:
+            from localization import get_localization_manager
+            loc = get_localization_manager()
+            return loc.get_message(key)
+        except:
+            return key
+
+
 # Factory function to create game entities
 def create_entity(entity_type: str, entity_id: str, name: str, **kwargs) -> BaseEntity:
     """Factory function to create game entities"""
@@ -544,6 +648,12 @@ def create_entity(entity_type: str, entity_id: str, name: str, **kwargs) -> Base
         return Table(entity_id, name, **kwargs)
     elif entity_type.lower() == "box":
         return Box(entity_id, name, **kwargs)
+    elif entity_type.lower() == "buisson":
+        return Buisson(entity_id, name, **kwargs)
+    elif entity_type.lower() == "fontaine":
+        return Fontaine(entity_id, name, **kwargs)
+    elif entity_type.lower() == "coffre":
+        return Coffre(entity_id, name, **kwargs)
     else:
         # Default to base entity
         return BaseEntity(entity_id, name, **kwargs)

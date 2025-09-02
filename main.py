@@ -15,7 +15,6 @@ from scenes import Scene
 from ui import GameInterface, NotificationSystem, Inventory
 from utils.logger import get_logger
 
-
 class PointClickGame(Game):
 
     def __init__(self, width: int = 800, height: int = 600, title: str = "Point & Click Game"):
@@ -83,12 +82,18 @@ class PointClickGame(Game):
         if os.path.exists(natural_script_path):
             try:
                 from natural_script_engine import NaturalScriptEngine
+                # Ajouter une référence au jeu dans le contexte pour le changement de scène
+                self.context['game'] = self
                 self.script_engine = NaturalScriptEngine(self.context)
                 scenes_data = self.script_engine.parse_script(natural_script_path)
                 
                 for scene_id, scene_data in scenes_data.items():
                     scene = Scene(self, scene_data)
                     self.scene_manager.scenes[scene_id] = scene
+                    
+                    # Ajouter l'image de fond pour la scène hall
+                    if scene_id == 'hall':
+                        scene.load_background('assets/test.png')
 
                 # Définir la scène actuelle
                 if 'hall' in self.scene_manager.scenes:
@@ -116,6 +121,10 @@ class PointClickGame(Game):
             for scene_id, scene_data in scenes_data.items():
                 scene = Scene(self, scene_data)
                 self.scene_manager.scenes[scene_id] = scene
+                
+                # Ajouter l'image de fond pour la scène hall
+                if scene_id == 'hall':
+                    scene.load_background('assets/test.png')
 
             # Définir la scène actuelle
             if 'hall' in self.scene_manager.scenes:
@@ -274,6 +283,19 @@ class PointClickGame(Game):
             if self.scene_manager.current_scene:
                 clicked_entity = self._get_clicked_entity(pos)
                 
+                # Vérifier d'abord si c'est un clic sur une porte ouverte (transition de scène)
+                if (clicked_entity and clicked_entity.id == "door" and 
+                    hasattr(clicked_entity, 'state') and clicked_entity.state == "open"):
+                    # Transition vers la scène 2
+                    if hasattr(self, 'script_engine') and self.script_engine:
+                        self.script_engine._change_scene("garden")
+                    return
+                elif clicked_entity and clicked_entity.id == "return_door":
+                    # Transition vers la scène 1
+                    if hasattr(self, 'script_engine') and self.script_engine:
+                        self.script_engine._change_scene("hall")
+                    return
+                
                 if clicked_entity:
                     # Un objet a été cliqué
                     if self.interface.selected_action in self.interface.two_object_actions:
@@ -363,8 +385,14 @@ class PointClickGame(Game):
         """Crée une entité du bon type à partir d'un objet d'inventaire"""
         from entities import Door, Key, Table, Box, BaseEntity
         
-        item_id = inventory_item['id']
-        item_name = inventory_item['name']
+        item_id = inventory_item.get('id', '')
+        item_name = inventory_item.get('name', '')
+        
+        # Vérifier que les valeurs ne sont pas None
+        if item_id is None:
+            item_id = ''
+        if item_name is None:
+            item_name = ''
         
         # Créer l'entité selon son type (identique aux entités de la scène)
         if 'clé' in item_name.lower() or 'key' in item_id.lower():
@@ -419,6 +447,36 @@ class PointClickGame(Game):
 
     def _execute_two_object_action(self, action, first_obj, second_obj):
         """Exécute une action à deux objets"""
+        # Vérifier que action n'est pas None
+        if action is None:
+            self.context['status'] = "Action non définie."
+            return
+            
+        # Vérifier d'abord si le moteur de script naturel peut gérer cette action
+        if hasattr(self, 'script_engine') and self.script_engine:
+            script_action = self.script_engine.find_action(action.lower(), first_obj.id, second_obj.id)
+            if script_action:
+                # Vérifier les prérequis
+                if self.script_engine.check_action_requirements(script_action):
+                    # Afficher le message au-dessus de l'objet (comme les autres actions)
+                    if self.scene_manager.current_scene:
+                        self.scene_manager.current_scene._show_message_above(script_action.message, second_obj, self.context)
+                    # Exécuter les effets
+                    self.script_engine.execute_action_effects(script_action)
+                    # Nettoyer les sélections d'interface après l'exécution réussie
+                    if hasattr(self, 'interface') and self.interface:
+                        self.interface.clear_selections()
+                    return
+                else:
+                    # Action trouvée mais prérequis non remplis
+                    forbidden_msg = self.script_engine.get_forbidden_message_for_failed_requirements(action.lower(), second_obj.id)
+                    if forbidden_msg:
+                        self.context['status'] = forbidden_msg
+                    else:
+                        self.context['status'] = "Vous ne pouvez pas faire cela pour le moment."
+                    return
+        
+        # Fallback vers le système classique si le script engine ne gère pas l'action
         if action == "use":
             # Logique pour "Utiliser X avec Y"
             result = first_obj.use_with(second_obj, self.context)
@@ -462,9 +520,17 @@ class PointClickGame(Game):
         if scene_rect.collidepoint(pos):
             # Vérifier le survol des entités dans la scène
             if self.scene_manager.current_scene:
-                entity_name = self.scene_manager.current_scene.handle_hover(pos)
-                if entity_name:
-                    # Gestion spéciale pour les actions à deux objets
+                hover_result = self.scene_manager.current_scene.handle_hover(pos)
+                if hover_result:
+                    # Vérifier si c'est un tuple spécial (porte ouverte)
+                    if isinstance(hover_result, tuple) and hover_result[0] == "door_open":
+                        # Changer le curseur et afficher le message spécial
+                        pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
+                        self.context['status'] = hover_result[1]
+                        return
+                    
+                    entity_name = hover_result
+                    # Gestion normale pour les autres entités
                     if self.interface.selected_action in self.interface.two_object_actions:
                         if self.interface.first_object is None:
                             # Premier objet à sélectionner
@@ -486,7 +552,9 @@ class PointClickGame(Game):
                     else:
                         self.context['status'] = entity_name
                 else:
-                    # Pas d'entité survolée, afficher l'état actuel
+                    # Pas d'entité survolée, remettre le curseur normal
+                    pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+                    # Afficher l'état actuel
                     if self.interface.selected_action and self.interface.first_object:
                         action_name = self.loc.get_action_name(self.interface.selected_action)
                         if self.interface.selected_action == "give":
@@ -501,7 +569,8 @@ class PointClickGame(Game):
                     else:
                         self.context['status'] = ""
         else:
-            # Hors de la scène, vérifier l'inventaire
+            # Hors de la scène, remettre le curseur normal et vérifier l'inventaire
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
             if self.interface:
                 hovered_item = self.interface.get_hovered_inventory_item(pos, self.context)
                 if hovered_item:
@@ -588,8 +657,10 @@ class PointClickGame(Game):
 
     def render(self):
         """Rendre le jeu"""
-        # Effacer l'écran
-        self.renderer.clear()
+        # Effacer l'écran seulement si la scène actuelle n'a pas d'image de fond
+        current_scene = self.scene_manager.current_scene
+        if not (current_scene and hasattr(current_scene, 'background_image') and current_scene.background_image):
+            self.renderer.clear()
 
         # Rendre la scène
         if self.scene_manager.current_scene:
@@ -632,13 +703,11 @@ class PointClickGame(Game):
             logger.info("Jeu terminé")
             pygame.quit()
 
-
 def main():
     """Point d'entrée principal"""
     game = PointClickGame()
     game.run()
     return 0
-
 
 if __name__ == '__main__':
     raise SystemExit(main())

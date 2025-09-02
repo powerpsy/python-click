@@ -1,54 +1,126 @@
-# Script de jeu naturel - Solution du jeu
+# Script de jeu naturel - Deux scènes
 # Format: Action -> Résultat [Prérequis optionnels]
 
-# === Configuration de la scène ===
+# === Configuration de la scène 1 - Hall d'entrée ===
 SCENE hall "Hall d'entrée"
   OBJECT door "Porte en bois" at (500, 300) [locked, key_required=key]
   OBJECT table "Table ancienne" at (300, 350) [hiding=key]
   OBJECT key "Petite clé en laiton" at (300, 370) [hidden]
 
-# === Solution du jeu (actions possibles) ===
+# === Solution du jeu - Scène 1 ===
 
 # 1. Observer la table révèle qu'elle est bancale
-ACTION regarder table -> "Une table bancale qui semble instable."
+ACTION look table -> "Une table bancale qui semble instable."
 
 # 2. Déplacer la table révèle la clé
-ACTION pousser table -> "Vous poussez la table. En la déplaçant, vous découvrez une petite clé en laiton qui était cachée dessous !"
+ACTION push table -> "Vous poussez la table. En la déplaçant, vous découvrez une petite clé en laiton qui était cachée dessous !"
   EFFECTS:
     - SHOW key
     - SET table.description "C est une table."
     - SET table.has_been_moved true
 
 # Ou bien tirer la table (même effet)
-ACTION tirer table -> "Vous tirez la table. En la déplaçant, vous découvrez une petite clé en laiton qui était cachée dessous !"
+ACTION pull table -> "Vous tirez la table. En la déplaçant, vous découvrez une petite clé en laiton qui était cachée dessous !"
   EFFECTS:
     - SHOW key  
     - SET table.description "C est une table."
     - SET table.has_been_moved true
 
 # 3. Prendre la clé (prérequis: table déplacée)
-ACTION prendre key -> "Vous prenez la clé en laiton."
+ACTION take key -> "Vous prenez la clé en laiton."
   REQUIRES: table.has_been_moved = true
   EFFECTS:
     - ADD_TO_INVENTORY key
     - HIDE key
 
 # 4. Utiliser la clé sur la porte (prérequis: avoir la clé)
-ACTION utiliser key door -> "Vous utilisez la clé pour déverrouiller la porte. Elle est maintenant fermée mais déverrouillée."
+ACTION use key door -> "Vous utilisez la clé pour déverrouiller la porte. Elle est maintenant fermée mais déverrouillée."
   REQUIRES: key IN inventory
   EFFECTS:
     - SET door.locked false
 
-# 5. Ouvrir la porte (prérequis: porte déverrouillée)
-ACTION ouvrir door -> "La porte s'ouvre, révélant un couloir sombre."
+# 5. Ouvrir la porte (prérequis: porte déverrouillée) - Ouvre seulement la porte
+ACTION open door -> "La porte s'ouvre, révélant un magnifique jardin secret."
   REQUIRES: door.locked = false
   EFFECTS:
     - SET door.state "open"
-    - WIN_GAME
+
+# 5b. Regarder la porte ouverte
+ACTION look door -> "La porte est ouverte. Vous pouvez voir le jardin de l'autre côté."
+  REQUIRES: door.state = "open"
+
+# === Configuration de la scène 2 - Jardin secret ===
+SCENE garden "Jardin secret"
+  OBJECT buisson "Buisson" at (200, 350)
+  OBJECT fontaine "Fontaine" at (500, 300)
+  OBJECT coffre "Coffre ancien" at (220, 370) [hidden]
+  OBJECT golden_key "Clé dorée" at (500, 320) [hidden]
+  OBJECT return_door "Porte de retour" at (50, 200) [type:door]
+
+# === Solution du jeu - Scène 2 ===
+
+# 1. Regarder le buisson révèle le coffre (première fois)
+ACTION look buisson -> "En regardant de plus près, vous découvrez un coffre caché dans le buisson !"
+  REQUIRES: buisson.revealed != true
+  EFFECTS:
+    - SHOW coffre
+    - SET buisson.revealed true
+
+# 1b. Regarder le buisson après révélation du coffre
+ACTION look buisson -> "C'est un buisson. Vous avez déjà trouvé le coffre qu'il cachait."
+  REQUIRES: buisson.revealed = true
+
+# 2. Regarder la fontaine révèle la clé dorée (première fois)
+ACTION look fontaine -> "En regardant attentivement la fontaine, vous trouvez une clé dorée au fond !"
+  REQUIRES: fontaine.revealed != true
+  EFFECTS:
+    - SHOW golden_key
+    - SET fontaine.revealed true
+
+# 2b. Regarder la fontaine après révélation de la clé
+ACTION look fontaine -> "Une fontaine. Vous avez déjà trouvé la clé qu'elle cachait."
+  REQUIRES: fontaine.revealed = true
+
+# 3. Regarder le coffre
+ACTION look coffre -> "Un coffre ancien en bois. Il semble verrouillé."
+  REQUIRES: coffre.locked != false
+
+# 3b. Regarder le coffre après déverrouillage
+ACTION look coffre -> "Un coffre ancien en bois. Il est maintenant déverrouillé."
+  REQUIRES: coffre.locked = false
+
+# 3. Prendre la clé dorée
+ACTION take golden_key -> "Vous prenez la clé dorée."
+  EFFECTS:
+    - ADD_TO_INVENTORY golden_key
+    - HIDE golden_key
+
+# 4. Utiliser la clé dorée sur le coffre - déverrouille le coffre seulement
+ACTION use golden_key coffre -> "Vous déverrouillez le coffre avec la clé dorée."
+  REQUIRES: golden_key IN inventory
+  EFFECTS:
+    - SET coffre.locked false
+
+# 5. Ouvrir le coffre - Fin de jeu
+ACTION open coffre -> "Vous ouvrez le coffre, il contient l'objet de quête ! Bravo, vous l'avez trouvé !"
+  REQUIRES: coffre.locked = false
+  EFFECTS:
+    - SET game.won true
+
+# === Actions pour la porte de retour ===
+# 6. Regarder la porte de retour
+ACTION look return_door -> "C'est la porte par laquelle vous êtes arrivé. Elle mène au hall."
+
+# 7. Ouvrir la porte de retour - retour à la scène 1
+ACTION open return_door -> "Vous ouvrez la porte et retournez dans le hall."
+  EFFECTS:
+    - CHANGE_SCENE hall
 
 # === Actions interdites avec messages personnalisés ===
-FORBIDDEN parler door -> "Vous ne pouvez pas parler à une porte."
-FORBIDDEN prendre table -> "La table est trop lourde pour être prise."
+FORBIDDEN talk door -> "Vous ne pouvez pas parler à une porte."
+FORBIDDEN take table -> "La table est trop lourde pour être prise."
+FORBIDDEN take buisson -> "Vous ne pouvez pas prendre un buisson."
+FORBIDDEN take fontaine -> "Vous ne pouvez pas prendre une fontaine."
 
 # === Actions par défaut pour objets non listés ===
 DEFAULT -> "Cela n'a pas d'effet."

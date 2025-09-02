@@ -17,9 +17,26 @@ class Scene:
         self.scene_data = scene_data
         self.entities = []
         self.background_color = (75, 126, 165)  # Sky blue
+        self.background_image = None  # Image de fond
+        
+        # Charger l'image de fond si spécifiée
+        if 'background' in scene_data:
+            self.load_background(scene_data['background'])
 
         # Créer les entités à partir des données de scène
         self.setup_entities()
+
+    def load_background(self, background_path: str):
+        """Charger une image de fond"""
+        import pygame
+        try:
+            self.background_image = pygame.image.load(background_path)
+            # Redimensionner l'image pour qu'elle fasse 800x450 (taille de la scène)
+            self.background_image = pygame.transform.scale(self.background_image, (800, 450))
+            print(f"Image de fond chargée: {background_path}")
+        except pygame.error as e:
+            print(f"Erreur lors du chargement de l'image de fond {background_path}: {e}")
+            self.background_image = None
 
     def setup_entities(self):
         """Créer les entités à partir des données de scène"""
@@ -81,7 +98,12 @@ class Scene:
     def render(self, renderer, context=None):
         """Rendre la scène"""
         # Fond
-        renderer.fill_rect(pygame.Rect(0, 0, 800, 600), self.background_color)
+        if self.background_image:
+            # Afficher l'image de fond
+            renderer.surface.blit(self.background_image, (0, 0))
+        else:
+            # Afficher la couleur de fond par défaut
+            renderer.fill_rect(pygame.Rect(0, 0, 800, 600), self.background_color)
 
         # Rendre les entités
         for entity in self.entities:
@@ -175,22 +197,13 @@ class Scene:
                 if hasattr(self.game, 'script_engine') and self.game.script_engine:
                     script_action = self.game.script_engine.find_action(action.lower(), entity.id)
                     if script_action:
-                        # Vérifier les prérequis
-                        if self.game.script_engine.check_action_requirements(script_action):
-                            # Afficher le message de l'action
-                            self._show_message_above(script_action.message, entity, context)
-                            # Exécuter les effets
-                            self.game.script_engine.execute_action_effects(script_action)
-                            # Nettoyer les sélections d'interface après l'exécution réussie
-                            if hasattr(self.game, 'interface') and self.game.interface:
-                                self.game.interface.clear_selections()
-                        else:
-                            # Action trouvée mais prérequis non remplis - chercher une action interdite spécifique
-                            forbidden_msg = self.game.script_engine.get_forbidden_message_for_failed_requirements(action.lower(), entity.id)
-                            if forbidden_msg:
-                                self._show_message_above(forbidden_msg, entity, context)
-                            else:
-                                self._show_message_above("Vous ne pouvez pas faire cela pour le moment.", entity, context)
+                        # Afficher le message de l'action
+                        self._show_message_above(script_action.message, entity, context)
+                        # Exécuter les effets
+                        self.game.script_engine.execute_action_effects(script_action)
+                        # Nettoyer les sélections d'interface après l'exécution réussie
+                        if hasattr(self.game, 'interface') and self.game.interface:
+                            self.game.interface.clear_selections()
                         return  # Ne pas passer au système classique
                     else:
                         # Vérifier si c'est une action interdite
@@ -228,5 +241,13 @@ class Scene:
         """Gérer le survol des entités dans la scène"""
         for entity in self.entities:
             if entity.visible and entity.bounding_box.collidepoint(pos):
+                # Vérifier si c'est une porte ouverte (pour changer le curseur)
+                if (entity.id == "door" and hasattr(entity, 'state') and 
+                    entity.state == "open"):
+                    # Retourner un tuple spécial pour indiquer la porte ouverte
+                    return ("door_open", "Aller vers le jardin secret")
+                elif entity.id == "return_door":
+                    # Porte de retour toujours accessible
+                    return ("door_open", "Retourner au hall")
                 return entity.name
         return None

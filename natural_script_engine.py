@@ -41,11 +41,11 @@ class NaturalScriptEngine:
     
     def __init__(self, game_context):
         self.game_context = game_context
-        self.objects: Dict[str, GameObject] = {}
-        self.actions: List[GameAction] = []
+        self.scenes: Dict[str, Dict[str, Any]] = {}  # Dictionnaire des scènes
+        self.actions: Dict[str, List[GameAction]] = {}  # Actions par scène
         self.forbidden_actions: Dict[str, str] = {}
         self.game_state: Dict[str, Any] = {}
-        self.scene_name = ""
+        self.current_scene_id = ""
         
     def parse_script(self, script_path: str):
         """Parse le script naturel"""
@@ -73,10 +73,28 @@ class NaturalScriptEngine:
     def _parse_scene(self, lines: List[str], start_idx: int) -> int:
         """Parse la définition de scène"""
         line = lines[start_idx].strip()  # Strip pour le matching
-        match = re.match(r'SCENE (\w+) "([^"]+)"', line)
+        # SCENE hall "Hall d'entrée" [background=assets/test.png]
+        match = re.match(r'SCENE (\w+) "([^"]+)"(?:\s*\[([^\]]+)\])?', line)
         if match:
-            scene_id, scene_name = match.groups()
-            self.scene_name = scene_name
+            scene_id, scene_name, props_str = match.groups()
+            self.current_scene_id = scene_id
+            
+            # Initialiser la scène
+            scene_data = {
+                'id': scene_id,
+                'name': scene_name,
+                'objects': {},
+                'entities': []
+            }
+            
+            # Parser les propriétés de la scène
+            if props_str:
+                properties = self._parse_properties(props_str)
+                scene_data.update(properties)
+            
+            self.scenes[scene_id] = scene_data
+            # Initialiser la liste des actions pour cette scène
+            self.actions[scene_id] = []
         
         i = start_idx + 1
         while i < len(lines) and lines[i].strip().startswith('OBJECT'):  # Vérifier que la ligne strippée commence par OBJECT
@@ -108,13 +126,24 @@ class NaturalScriptEngine:
                         properties[prop] = True
             
             # Déterminer le type d'entité
-            if 'door' in obj_id.lower() or 'porte' in name.lower():
+            name_safe = name.lower() if name else ""
+            if obj_id == "door" or "door" in name_safe or "porte" in name_safe:
                 entity_type = "door"
-            elif 'key' in obj_id.lower() or 'clé' in name.lower():
+            elif obj_id == "key" or "clé" in name_safe or "key" in name_safe:
                 entity_type = "key"
-            elif 'table' in obj_id.lower():
+            elif obj_id == "table" or "table" in name_safe:
                 entity_type = "table"
-            self.objects[obj_id] = GameObject(obj_id, name, position, properties, entity_type)
+            elif obj_id == "buisson" or "buisson" in name_safe:
+                entity_type = "buisson"
+            elif obj_id == "fontaine" or "fontaine" in name_safe:
+                entity_type = "fontaine"
+            elif obj_id == "coffre" or "coffre" in name_safe:
+                entity_type = "coffre"
+            
+            # Stocker dans la scène courante
+            game_obj = GameObject(obj_id, name, position, properties, entity_type)
+            if self.current_scene_id:
+                self.scenes[self.current_scene_id]['objects'][obj_id] = game_obj
         
         return start_idx + 1
     
@@ -142,7 +171,11 @@ class NaturalScriptEngine:
                     action.effects.append(effect)
                 i += 1
             
-            self.actions.append(action)
+            # Ajouter l'action à la scène courante
+            if self.current_scene_id:
+                if self.current_scene_id not in self.actions:
+                    self.actions[self.current_scene_id] = []
+                self.actions[self.current_scene_id].append(action)
             return i
         
         return start_idx + 1
@@ -161,24 +194,29 @@ class NaturalScriptEngine:
         return start_idx + 1
     
     def _create_entities(self) -> Dict[str, Any]:
-        """Crée les entités à partir des objets parsés"""
-        scene_data = {
-            'id': 'hall',
-            'name': self.scene_name,
-            'entities': []
-        }
+        """Crée les entités pour toutes les scènes à partir des objets parsés"""
+        result = {}
         
-        for obj_id, obj in self.objects.items():
-            entity_data = {
-                'id': obj_id,
-                'name': obj.name,
-                'type': obj.entity_type,
-                'position': obj.position,
-                'properties': self._convert_properties(obj.properties)
+        for scene_id, scene_info in self.scenes.items():
+            scene_data = {
+                'id': scene_id,
+                'name': scene_info['name'],
+                'entities': []
             }
-            scene_data['entities'].append(entity_data)
+            
+            for obj_id, obj in scene_info['objects'].items():
+                entity_data = {
+                    'id': obj_id,
+                    'name': obj.name,
+                    'type': obj.entity_type,
+                    'position': obj.position,
+                    'properties': self._convert_properties(obj.properties)
+                }
+                scene_data['entities'].append(entity_data)
+            
+            result[scene_id] = scene_data
         
-        return {'hall': scene_data}
+        return result
     
     def _convert_properties(self, props: Dict[str, Any]) -> Dict[str, Any]:
         """Convertit les propriétés du script en propriétés d'entité"""
@@ -214,7 +252,31 @@ class NaturalScriptEngine:
             inventory = self.game_context.get('inventory', [])
             return any(item.get('id') == obj_id for item in inventory)
         
-        if '=' in condition:
+        # Support pour != et =
+        if '!=' in condition:
+            left, right = condition.split('!=', 1)
+            obj_prop, prop_name = left.strip().split('.')
+            expected_value = right.strip()
+            
+            # Convertir la valeur attendue
+            if expected_value.lower() == 'true':
+                expected_value = True
+            elif expected_value.lower() == 'false':
+                expected_value = False
+            
+            # Vérifier la propriété de l'objet
+            current_scene = self.game_context.get('current_scene')
+            if current_scene:
+                for entity in current_scene.entities:
+                    if entity.id == obj_prop:
+                        actual_value = getattr(entity, prop_name, None)
+                        # Pour !=, si la propriété n'existe pas (None), on considère que c'est différent de la valeur attendue
+                        if actual_value is None:
+                            return expected_value is not None
+                        return actual_value != expected_value
+            return True  # Si l'objet n'existe pas, on considère que la condition != est vraie
+            
+        elif '=' in condition:
             left, right = condition.split('=', 1)
             obj_prop, prop_name = left.strip().split('.')
             expected_value = right.strip()
@@ -262,10 +324,26 @@ class NaturalScriptEngine:
             if first_space > 0:
                 obj_prop = effect_content[:first_space]
                 value = effect_content[first_space+1:].strip()
-                obj_id, prop_name = obj_prop.split('.')
-                self._set_object_property(obj_id, prop_name, value)
+                
+                # Gérer les propriétés spéciales du jeu
+                if obj_prop == 'game.won':
+                    if value.lower() == 'true':
+                        self.game_context['game_won'] = True
+                        print("🎉 Félicitations ! Vous avez terminé le jeu !")
+                else:
+                    obj_id, prop_name = obj_prop.split('.')
+                    self._set_object_property(obj_id, prop_name, value)
         elif effect == 'WIN_GAME':
             print("🎉 Félicitations ! Vous avez terminé le jeu !")
+            # Ajouter un délai pour permettre au message de s'afficher
+            import pygame
+            pygame.time.wait(2000)  # Attendre 2 secondes
+            pygame.quit()
+            import sys
+            sys.exit()
+        elif effect.startswith('CHANGE_SCENE '):
+            scene_id = effect[13:].strip()
+            self._change_scene(scene_id)
     
     def _set_object_visible(self, obj_id: str, visible: bool):
         """Change la visibilité d'un objet"""
@@ -291,6 +369,17 @@ class NaturalScriptEngine:
                     entity.visible = False
                     break
     
+    def _change_scene(self, scene_id: str):
+        """Change vers une autre scène"""
+        if hasattr(self.game_context, 'get') and 'game' in self.game_context:
+            game = self.game_context['game']
+            if hasattr(game, 'scene_manager'):
+                success = game.scene_manager.load_scene(scene_id, self.game_context)
+                if not success:
+                    print(f"Erreur: impossible de charger la scène '{scene_id}'")
+        else:
+            print(f"Erreur: contexte de jeu non disponible pour changer de scène")
+    
     def _set_object_property(self, obj_id: str, prop_name: str, value: str):
         """Modifie une propriété d'un objet"""
         # Convertir la valeur
@@ -311,11 +400,28 @@ class NaturalScriptEngine:
                     break
     
     def find_action(self, verb: str, target1: str, target2: Optional[str] = None) -> Optional[GameAction]:
-        """Trouve une action correspondante"""
-        for action in self.actions:
-            if (action.verb == verb and action.target == target1 and 
-                action.target2 == target2):
-                return action
+        """Trouve une action correspondante dans la scène courante"""
+        # Déterminer la scène courante - essayer plusieurs approches
+        scene_id = 'hall'  # Fallback par défaut
+        
+        # Méthode 1: via le contexte
+        current_scene = self.game_context.get('current_scene')
+        if current_scene:
+            if hasattr(current_scene, 'scene_data') and 'id' in current_scene.scene_data:
+                scene_id = current_scene.scene_data['id']
+            elif hasattr(current_scene, 'id'):
+                scene_id = current_scene.id
+        
+        # Chercher dans les actions de la scène courante
+        # Parcourir dans l'ordre et retourner la première action valide avec prérequis remplis
+        if scene_id in self.actions:
+            for action in self.actions[scene_id]:
+                if (action.verb == verb and action.target == target1 and 
+                    action.target2 == target2):
+                    # Vérifier les prérequis
+                    if self.check_action_requirements(action):
+                        return action
+        
         return None
     
     def get_forbidden_message(self, verb: str, target: str) -> Optional[str]:
@@ -333,3 +439,16 @@ class NaturalScriptEngine:
                     if entity.id == target and hasattr(entity, 'locked') and entity.locked:
                         return "La porte est verrouillée. Il faut d'abord la déverrouiller."
         return None
+
+    def _parse_properties(self, props_str: str) -> Dict[str, Any]:
+        """Parse une chaîne de propriétés sous forme key=value,key2=value2"""
+        properties = {}
+        if props_str:
+            props = [p.strip() for p in props_str.split(',')]
+            for prop in props:
+                if '=' in prop:
+                    key, value = prop.split('=', 1)
+                    properties[key.strip()] = value.strip()
+                else:
+                    properties[prop] = True
+        return properties
