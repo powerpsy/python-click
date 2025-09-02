@@ -7,6 +7,15 @@ from typing import Dict, Any, Optional, List
 from entities.base_entity import BaseEntity
 import pygame
 
+# Import localization manager
+try:
+    from localization import LocalizationManager
+except ImportError:
+    # Fallback if localization is not available
+    class LocalizationManager:
+        def get_message(self, key):
+            return key
+
 
 class Door(BaseEntity):
     """Door entity for the game"""
@@ -37,17 +46,17 @@ class Door(BaseEntity):
 
         # Configure allowed actions for doors
         self.allowed_actions = {
-            "Ouvrir": self._action_ouvrir,
-            "Fermer": self._action_fermer,
-            "Regarder": self._action_regarder,
-            "Pousser": "La porte résiste à votre poussée.",
-            "Tirer": "Vous tirez la porte."
+            "open": self._action_ouvrir,
+            "close": self._action_fermer,
+            "look": self._action_regarder,
+            "push": self._get_localized_message("door_resist_push"),
+            "pull": self._get_localized_message("door_pull")
         }
 
         # Configure forbidden actions for doors
         self.forbidden_actions = {
-            "Parler": "Vous ne pouvez pas parler à une porte.",
-            "Manger": "Vous ne pouvez pas manger une porte !",
+            "talk": self._get_localized_message("cant_talk_door"),
+            "eat": self._get_localized_message("cant_eat_door"),
             "Boire": "Ce n'est pas quelque chose que l'on peut boire.",
             "Embrasser": "Embrasser une porte ? Vraiment ?",
             "Sentir": "La porte sent le bois.",
@@ -55,6 +64,15 @@ class Door(BaseEntity):
             "Lécher": "Eurk ! Vous ne voulez vraiment pas faire ça.",
             "Casser": "Vous n'arrivez pas à casser cette porte solide."
         }
+
+    def _get_localized_message(self, key: str) -> str:
+        """Get localized message for the given key"""
+        try:
+            from localization import get_localization_manager
+            loc = get_localization_manager()
+            return loc.get_message(key)
+        except:
+            return key
 
     def can_interact(self, action: str, game_context: Dict[str, Any]) -> bool:
         """Check if the door can perform the given action"""
@@ -154,20 +172,20 @@ class Key(BaseEntity):
 
         # Configure allowed actions for keys
         self.allowed_actions = {
-            "Prendre": self._action_prendre,
-            "Regarder": self._action_regarder,
-            "Utiliser": "Vous essayez d'utiliser la clé, mais rien ne se passe."
+            "take": self._action_prendre,
+            "look": self._action_regarder,
+            "use": "Vous essayez d'utiliser la clé, mais rien ne se passe."
         }
 
         # Configure forbidden actions for keys
         self.forbidden_actions = {
-            "Parler": "La clé reste silencieuse.",
-            "Manger": "Vous ne pouvez pas manger une clé !",
-            "Boire": "Ce n'est pas quelque chose que l'on peut boire.",
-            "Embrasser": "Vous embrassez la clé. Ça ne change rien.",
-            "Sentir": "La clé sent le métal.",
-            "Écouter": "La clé ne fait aucun bruit.",
-            "Lécher": "Le goût métallique n'est pas agréable.",
+            "talk": "La clé reste silencieuse.",
+            "eat": "Vous ne pouvez pas manger une clé !",
+            "drink": "Ce n'est pas quelque chose que l'on peut boire.",
+            "kiss": "Vous embrassez la clé. Ça ne change rien.",
+            "smell": "La clé sent le métal.",
+            "listen": "La clé ne fait aucun bruit.",
+            "lick": "Le goût métallique n'est pas agréable.",
             "Casser": "La clé est trop solide pour être cassée.",
             "Ouvrir": "On ne peut pas ouvrir une clé.",
             "Fermer": "On ne peut pas fermer une clé.",
@@ -286,18 +304,18 @@ class Table(BaseEntity):
 
         # Configure allowed actions for tables
         self.allowed_actions = {
-            "Regarder": self._action_regarder,
-            "Pousser": self._action_pousser,
-            "Tirer": self._action_tirer
+            "look": self._action_regarder,
+            "push": self._action_pousser,
+            "pull": self._action_tirer
         }
 
         # Configure forbidden actions for tables
         self.forbidden_actions = {
-            "Parler": "La table ne vous répond pas.",
-            "Manger": "Vous ne pouvez pas manger une table !",
-            "Boire": "Ce n'est pas quelque chose que l'on peut boire.",
-            "Prendre": "La table est trop lourde pour être prise.",
-            "Embrasser": "Vous embrassez la table. Bizarre...",
+            "talk": "La table ne vous répond pas.",
+            "eat": "Vous ne pouvez pas manger une table !",
+            "drink": "Ce n'est pas quelque chose que l'on peut boire.",
+            "take": "La table est trop lourde pour être prise.",
+            "kiss": "Vous embrassez la table. Bizarre...",
             "Sentir": "La table sent le bois vernis.",
             "Écouter": "La table est silencieuse.",
             "Lécher": "Le goût du vernis n'est pas terrible.",
@@ -428,16 +446,16 @@ class Box(BaseEntity):
 
         # Configure allowed actions for boxes
         self.allowed_actions = {
-            "Ouvrir": self._action_ouvrir,
-            "Fermer": self._action_fermer,
-            "Regarder": self._action_regarder,
-            "Pousser": "La boîte glisse un peu.",
-            "Tirer": "Vous tirez la boîte vers vous."
+            "open": self._action_ouvrir,
+            "close": self._action_fermer,
+            "look": self._action_regarder,
+            "push": "La boîte glisse un peu.",
+            "pull": "Vous tirez la boîte vers vous."
         }
 
         # Configure forbidden actions for boxes
         self.forbidden_actions = {
-            "Parler": "La boîte ne vous répond pas.",
+            "talk": "La boîte ne vous répond pas.",
             "Manger": "Vous ne pouvez pas manger une boîte !",
             "Boire": "Ce n'est pas quelque chose que l'on peut boire.",
             "Embrasser": "Vous embrassez la boîte. Étrange...",

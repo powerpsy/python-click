@@ -7,6 +7,15 @@ import time
 import random
 from typing import Dict, Any, List, Optional, Tuple
 
+# Import localization manager
+try:
+    from localization import LocalizationManager
+except ImportError:
+    # Fallback if localization is not available
+    class LocalizationManager:
+        def get_message(self, key):
+            return key
+
 
 class Component:
     """Base class for entity components"""
@@ -34,6 +43,9 @@ class BaseEntity:
         self.name = name
         self.position = position or (0, 0)
         self.properties = properties
+
+        # Localization
+        self._localization_manager = None
 
         # Component system
         self.components: Dict[str, Component] = {}
@@ -73,6 +85,21 @@ class BaseEntity:
     def has_component(self, component_type: type) -> bool:
         """Check if entity has a specific component"""
         return component_type.__name__ in self.components
+
+    def _get_localization_manager(self) -> LocalizationManager:
+        """Get localization manager instance"""
+        if self._localization_manager is None:
+            from localization import get_localization_manager
+            self._localization_manager = get_localization_manager()
+        return self._localization_manager
+
+    def _get_localized_message(self, key: str) -> str:
+        """Get localized message for the given key"""
+        try:
+            loc = self._get_localization_manager()
+            return loc.get_message(key)
+        except:
+            return key
 
     def update(self, game_context: Dict[str, Any]) -> None:
         """Update all components"""
@@ -134,22 +161,24 @@ class BaseEntity:
                 return None
         
         # Default implementation - show random message for unsupported actions
-        random_messages = [
-            "Cela n'a pas d'effet.",
-            "Je ne vois pas ce que cela est censé faire.",
-            "Je ne crois pas, non.",
-            "Ça ne semble pas être une bonne idée.",
-            "Je n'arrive pas à faire ça.",
-            "Ce n'est pas possible.",
-            "Rien ne se passe.",
-            "Je ne pense pas que ce soit utile.",
-            "Cela ne mène à rien.",
-            "Je ne vois pas l'intérêt.",
-            "Ça ne fonctionne pas comme ça.",
-            "Je préfère ne pas essayer."
+        loc = self._get_localization_manager()
+        random_message_keys = [
+            "no_effect",
+            "dont_see_purpose", 
+            "dont_think_so",
+            "not_good_idea",
+            "cant_do_it",
+            "not_possible",
+            "nothing_happens_2",
+            "not_useful",
+            "leads_nowhere",
+            "dont_see_interest",
+            "doesnt_work_that_way",
+            "prefer_not_try"
         ]
         
-        message = random.choice(random_messages)
+        message_key = random.choice(random_message_keys)
+        message = loc.get_message(message_key)
         self._show_message_above(message, game_context)
         return None
 
@@ -159,14 +188,19 @@ class BaseEntity:
         Returns a message to display, or None to show message above entity
         """
         # Default implementation for unsupported combinations
-        random_messages = [
-            f"Je ne vois pas comment utiliser {self.name} avec {other_entity.name}.",
-            f"Ça ne fonctionne pas ensemble.",
-            f"Ce n'est pas compatible.",
-            f"Je ne pense pas que ce soit une bonne combinaison."
+        loc = self._get_localization_manager()
+        random_message_keys = [
+            "dont_see_how_use",
+            "doesnt_work_together",
+            "not_compatible", 
+            "not_good_combination"
         ]
         
-        message = random.choice(random_messages)
+        message_key = random.choice(random_message_keys)
+        if message_key == "dont_see_how_use":
+            message = loc.get_message(message_key).format(item1=self.name, item2=other_entity.name)
+        else:
+            message = loc.get_message(message_key)
         self._show_message_above(message, game_context)
         return None
 
@@ -176,14 +210,21 @@ class BaseEntity:
         Returns a message to display, or None to show message above entity
         """
         # Default implementation for unsupported combinations
-        random_messages = [
-            f"Je ne peux pas donner {self.name} à {other_entity.name}.",
-            f"{other_entity.name} ne semble pas intéressé.",
-            f"Ce n'est pas nécessaire.",
-            f"Ça ne sert à rien."
+        loc = self._get_localization_manager()
+        random_message_keys = [
+            "cant_give",
+            "not_interested",
+            "not_necessary",
+            "no_use"
         ]
         
-        message = random.choice(random_messages)
+        message_key = random.choice(random_message_keys)
+        if message_key == "cant_give":
+            message = loc.get_message(message_key).format(item1=self.name, item2=other_entity.name)
+        elif message_key == "not_interested":
+            message = loc.get_message(message_key).format(target=other_entity.name)
+        else:
+            message = loc.get_message(message_key)
         self._show_message_above(message, game_context)
         return None
 

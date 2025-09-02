@@ -14,10 +14,10 @@ x. bug: quand le jeu s'affiche, si on ouvre la porte, le message "la porte s'ouv
 
 x. quand on ouvre la porte, l'image de la porte ouverte ne s'affiche pas. quand on pousse la table on voit la clé mais on ne peut pas la prendre. par contre on peut utliser clé sur porte, c'est fonctionnel.
 
-4. amélioration: tous les mots des actions, tous les mots des objets, toutes les phrases de description dans le jeu, bref tout ce qui est affiché devrait être dans un fichier spécifique à la langue de l'utilisateur, cela permettra la traduction facilement. du coup, chaque mot ou phrase doit avoir une référence. je propose d'avoir un fichier avec les mots des actions dans core, un fichier avec les noms des objets dans entities, un fichier avec les descriptions dans scenes ou entities, à voir ce qui est le plus logique. je suis ouvert à de meilleures propositions si tu en as.
+x. amélioration: tous les mots des actions, tous les mots des objets, toutes les phrases de description dans le jeu, bref tout ce qui est affiché devrait être dans des fichiers spécifiques à la langue de l'utilisateur, cela permettra la traduction facilement. du coup, chaque mot ou phrase doit avoir une référence. je propose d'avoir un fichier avec les mots des actions dans <core>, un fichier avec les noms des objets dans <entities>, un fichier avec les descriptions dans <scenes> ou <entities>, à voir ce qui est le plus logique. je suis ouvert à de meilleures propositions si tu en as.
 
 x. bug: les flèches haut et bas de l'inventaire ne sont pas affichées. il y a une place existante à gauche de l'inventaire mais elles n'existent pas.
 
-
+5. quand on passe au dessus des actions sans cliquer cela indique dans la barre de status l'action mais en anglais
 
 

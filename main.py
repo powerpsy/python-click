@@ -8,6 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 import pygame
+from localization import LocalizationManager, get_localization_manager
 from typing import Dict, Any
 from core import Game, SceneManager, EventSystem, Renderer
 from scenes import Scene
@@ -32,10 +33,11 @@ class PointClickGame(Game):
         pygame.display.set_caption(title)
 
         # Systèmes de jeu
+        self.loc = get_localization_manager()
         self.renderer = Renderer(self.screen)
         self.event_system = EventSystem()
         self.scene_manager = SceneManager()
-        self.interface = GameInterface()
+        self.interface = GameInterface(self.loc)
         self.notification_system = NotificationSystem()
 
         # Systèmes optionnels
@@ -207,7 +209,7 @@ class PointClickGame(Game):
             return {
                 'width': 32,
                 'height': 32,
-                'description': 'petite clé en laiton brillant',
+                'description': self.loc.get_description('key_brass'),
                 'visible': False  # Invisible au début
             }
         else:
@@ -279,8 +281,9 @@ class PointClickGame(Game):
                         if self.interface.first_object is None:
                             # Premier objet sélectionné
                             self.interface.first_object = clicked_entity
-                            preposition = "à" if self.interface.selected_action == "Donner" else "avec"
-                            self.context['status'] = f"{self.interface.selected_action} {clicked_entity.name} {preposition}"
+                            preposition = self.loc.get_ui_text("preposition_to") if self.interface.selected_action == "give" else self.loc.get_ui_text("preposition_with")
+                            action_name = self.loc.get_action_name(self.interface.selected_action)
+                            self.context['status'] = f"{action_name} {clicked_entity.name} {preposition}"
                         else:
                             # Deuxième objet sélectionné - exécuter l'action
                             self._execute_two_object_action(
@@ -321,8 +324,9 @@ class PointClickGame(Game):
                         if self.interface.first_object is None:
                             # Premier objet sélectionné depuis l'inventaire - créer un objet temporaire
                             self.interface.first_object = self._create_inventory_entity(clicked_inventory_item)
-                            preposition = "à" if self.interface.selected_action == "Donner" else "avec"
-                            self.context['status'] = f"{self.interface.selected_action} {clicked_inventory_item['name']} {preposition}"
+                            preposition = self.loc.get_ui_text("preposition_to") if self.interface.selected_action == "give" else self.loc.get_ui_text("preposition_with")
+                            action_name = self.loc.get_action_name(self.interface.selected_action)
+                            self.context['status'] = f"{action_name} {clicked_inventory_item['name']} {preposition}"
                         else:
                             # Deuxième objet sélectionné depuis l'inventaire - exécuter l'action
                             second_obj = self._create_inventory_entity(clicked_inventory_item)
@@ -415,12 +419,12 @@ class PointClickGame(Game):
 
     def _execute_two_object_action(self, action, first_obj, second_obj):
         """Exécute une action à deux objets"""
-        if action == "Utiliser":
+        if action == "use":
             # Logique pour "Utiliser X avec Y"
             result = first_obj.use_with(second_obj, self.context)
             if result:
                 self.context['status'] = result
-        elif action == "Donner":
+        elif action == "give":
             # Logique pour "Donner X à Y" 
             result = first_obj.give_to(second_obj, self.context)
             if result:
@@ -443,9 +447,10 @@ class PointClickGame(Game):
         # Gérer le survol de l'interface (priorité aux boutons d'action)
         if self.interface:
             self.interface.handle_hover(pos, self.context)
-            # Si une action est survolée, afficher son nom
+            # Si une action est survolée, afficher son nom traduit
             if self.interface.hovered_action:
-                self.context['status'] = self.interface.hovered_action
+                action_name = self.loc.get_action_name(self.interface.hovered_action)
+                self.context['status'] = action_name
                 return
             # Si un objet de l'inventaire est survolé, afficher son nom
             elif self.interface.hovered_inventory_item:
@@ -463,27 +468,36 @@ class PointClickGame(Game):
                     if self.interface.selected_action in self.interface.two_object_actions:
                         if self.interface.first_object is None:
                             # Premier objet à sélectionner
-                            self.context['status'] = f"{self.interface.selected_action} {entity_name}"
+                            action_name = self.loc.get_action_name(self.interface.selected_action)
+                            self.context['status'] = f"{action_name} {entity_name}"
                         else:
                             # Deuxième objet (combinaison complète)
-                            if self.interface.selected_action == "Donner":
-                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à {entity_name}"
-                            else:  # Utiliser
-                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec {entity_name}"
+                            action_name = self.loc.get_action_name(self.interface.selected_action)
+                            if self.interface.selected_action == "give":
+                                preposition = self.loc.get_ui_text("preposition_to")
+                                self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition} {entity_name}"
+                            else:  # use
+                                preposition = self.loc.get_ui_text("preposition_with")
+                                self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition} {entity_name}"
                     elif self.interface.selected_action:
                         # Action normale à un objet
-                        self.context['status'] = f"{self.interface.selected_action} {entity_name}"
+                        action_name = self.loc.get_action_name(self.interface.selected_action)
+                        self.context['status'] = f"{action_name} {entity_name}"
                     else:
                         self.context['status'] = entity_name
                 else:
                     # Pas d'entité survolée, afficher l'état actuel
                     if self.interface.selected_action and self.interface.first_object:
-                        if self.interface.selected_action == "Donner":
-                            self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à"
-                        else:  # Utiliser
-                            self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec"
+                        action_name = self.loc.get_action_name(self.interface.selected_action)
+                        if self.interface.selected_action == "give":
+                            preposition = self.loc.get_ui_text("preposition_to")
+                            self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition}"
+                        else:  # use
+                            preposition = self.loc.get_ui_text("preposition_with")
+                            self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition}"
                     elif self.interface.selected_action:
-                        self.context['status'] = self.interface.selected_action
+                        action_name = self.loc.get_action_name(self.interface.selected_action)
+                        self.context['status'] = action_name
                     else:
                         self.context['status'] = ""
         else:
@@ -493,18 +507,22 @@ class PointClickGame(Game):
                 if hovered_item:
                     # Gestion spéciale pour les actions à deux objets
                     if self.interface.selected_action in self.interface.two_object_actions:
+                        action_name = self.loc.get_action_name(self.interface.selected_action)
                         if self.interface.first_object is None:
                             # Premier objet à sélectionner depuis l'inventaire
-                            self.context['status'] = f"{self.interface.selected_action} {hovered_item}"
+                            self.context['status'] = f"{action_name} {hovered_item}"
                         else:
                             # Le premier objet est déjà sélectionné, on survole un deuxième
-                            if self.interface.selected_action == "Donner":
-                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à {hovered_item}"
-                            else:  # Utiliser  
-                                self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec {hovered_item}"
+                            if self.interface.selected_action == "give":
+                                preposition = self.loc.get_ui_text("preposition_to")
+                                self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition} {hovered_item}"
+                            else:  # use
+                                preposition = self.loc.get_ui_text("preposition_with")
+                                self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition} {hovered_item}"
                     elif self.interface.selected_action:
                         # Action normale à un objet
-                        self.context['status'] = f"{self.interface.selected_action} {hovered_item}"
+                        action_name = self.loc.get_action_name(self.interface.selected_action)
+                        self.context['status'] = f"{action_name} {hovered_item}"
                     else:
                         # Juste afficher le nom de l'objet survolé
                         self.context['status'] = hovered_item
@@ -512,12 +530,16 @@ class PointClickGame(Game):
             
             # Pas d'objet d'inventaire survolé, afficher l'état actuel
             if self.interface.selected_action and self.interface.first_object:
-                if self.interface.selected_action == "Donner":
-                    self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} à"
-                else:  # Utiliser
-                    self.context['status'] = f"{self.interface.selected_action} {self.interface.first_object.name} avec"
+                action_name = self.loc.get_action_name(self.interface.selected_action)
+                if self.interface.selected_action == "give":
+                    preposition = self.loc.get_ui_text("preposition_to")
+                    self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition}"
+                else:  # use
+                    preposition = self.loc.get_ui_text("preposition_with")
+                    self.context['status'] = f"{action_name} {self.interface.first_object.name} {preposition}"
             elif self.interface.selected_action:
-                self.context['status'] = self.interface.selected_action
+                action_name = self.loc.get_action_name(self.interface.selected_action)
+                self.context['status'] = action_name
             else:
                 self.context['status'] = ""
 

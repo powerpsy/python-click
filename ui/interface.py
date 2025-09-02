@@ -9,9 +9,16 @@ from typing import Dict, Any, Tuple, List
 class GameInterface:
     """Main user interface controller"""
 
-    def __init__(self):
+    def __init__(self, localization_manager=None):
         self.width = 800
         self.height = 600
+        
+        # Localization manager
+        if localization_manager is None:
+            from localization import get_localization_manager
+            self.loc = get_localization_manager()
+        else:
+            self.loc = localization_manager
 
         # UI Layout constants
         self.SCENE_RECT = pygame.Rect(0, 0, self.width, int(self.height * 3 / 4))
@@ -25,13 +32,13 @@ class GameInterface:
         self.INV_AREA = pygame.Rect(int(self.width * 0.5), self.INTERACTIVE_BOTTOM.top,
                                    int(self.width * 0.5), self.INTERACTIVE_BOTTOM.height)
 
-        # Action verbs (French)
-        self.action_verbs = [
-            'Donner', 'Ouvrir', 'Fermer',
-            'Prendre', 'Regarder', 'Parler à',
-            'Utiliser', 'Pousser', 'Tirer'
+        # Action keys for localization
+        self.action_keys = [
+            'give', 'open', 'close',
+            'take', 'look', 'talk',
+            'use', 'push', 'pull'
         ]
-
+        
         # UI state
         self.show_inventory = True  # Inventaire toujours visible par défaut
         self.selected_action = None
@@ -45,7 +52,7 @@ class GameInterface:
         
         # Two-object action state
         self.first_object = None  # For actions like "Utiliser clé avec..."
-        self.two_object_actions = ['Donner', 'Utiliser']  # Actions that require two objects
+        self.two_object_actions = ['give', 'use']  # Actions that require two objects (using keys)
 
         # Fonts
         self.fonts = self._load_fonts()
@@ -124,6 +131,24 @@ class GameInterface:
         if status_text:
             renderer.render_text(status_text, self.STATUS_RECT.center,
                                font_name='small', center=True)
+        
+        # Language button in top-right corner
+        lang_button_size = 30
+        self.lang_button_rect = pygame.Rect(
+            self.STATUS_RECT.right - lang_button_size - 5,
+            self.STATUS_RECT.top + 2,
+            lang_button_size,
+            lang_button_size - 4
+        )
+        
+        # Button background
+        lang_color = (80, 80, 120) if getattr(self, 'hovered_lang_button', False) else (60, 60, 100)
+        renderer.fill_rect(self.lang_button_rect, lang_color)
+        
+        # Current language text
+        current_lang = self.loc.current_language.upper()
+        renderer.render_text(current_lang, self.lang_button_rect.center,
+                           font_name='small', center=True, color=(255, 255, 255))
 
     def _render_action_bar(self, renderer, context: Dict[str, Any]) -> None:
         """Render the action buttons"""
@@ -134,9 +159,12 @@ class GameInterface:
         button_width = self.ACTION_AREA.width // 3
         button_height = self.ACTION_AREA.height // 3
 
-        for i, action in enumerate(self.action_verbs):
+        for i, action_key in enumerate(self.action_keys):
             row = i // 3
             col = i % 3
+            
+            # Get localized action name
+            action_name = self.loc.get_action_name(action_key)
 
             button_rect = pygame.Rect(
                 self.ACTION_AREA.left + col * button_width,
@@ -147,9 +175,9 @@ class GameInterface:
 
             # Button background
             color = (60, 60, 60)
-            if self.hovered_action == action:
+            if self.hovered_action == action_key:
                 color = (80, 80, 80)
-            if self.selected_action == action:
+            if self.selected_action == action_key:
                 color = (100, 100, 100)
 
             renderer.fill_rect(button_rect, color)
@@ -157,8 +185,8 @@ class GameInterface:
 
             # Button text
             text_color = (255, 255, 255)
-            font_name = 'small_bold' if self.hovered_action == action else 'small'
-            renderer.render_text(action, button_rect.center,
+            font_name = 'small_bold' if self.hovered_action == action_key else 'small'
+            renderer.render_text(action_name, button_rect.center,
                                color=text_color, font_name=font_name, center=True)
 
     def _render_inventory(self, renderer, context: Dict[str, Any]) -> None:
@@ -379,6 +407,11 @@ class GameInterface:
 
     def handle_click(self, pos: Tuple[int, int], context: Dict[str, Any]) -> bool:
         """Handle mouse click on interface"""
+        # Check language button
+        if hasattr(self, 'lang_button_rect') and self.lang_button_rect.collidepoint(pos):
+            self._toggle_language()
+            return True
+            
         # Check action buttons
         if self._handle_action_click(pos, context):
             return True
@@ -394,12 +427,18 @@ class GameInterface:
         # Reset hover state
         self.hovered_action = None
         self.hovered_inventory_item = None
+        self.hovered_lang_button = False
+        
+        # Check language button
+        if hasattr(self, 'lang_button_rect') and self.lang_button_rect.collidepoint(pos):
+            self.hovered_lang_button = True
+            return
         
         # Check action buttons
         button_width = self.ACTION_AREA.width // 3
         button_height = self.ACTION_AREA.height // 3
 
-        for i, action in enumerate(self.action_verbs):
+        for i, action_key in enumerate(self.action_keys):
             row = i // 3
             col = i % 3
 
@@ -411,7 +450,7 @@ class GameInterface:
             )
 
             if button_rect.collidepoint(pos):
-                self.hovered_action = action
+                self.hovered_action = action_key
                 break
         
         # Check inventory hover if context is provided
@@ -470,7 +509,7 @@ class GameInterface:
         button_width = self.ACTION_AREA.width // 3
         button_height = self.ACTION_AREA.height // 3
 
-        for i, action in enumerate(self.action_verbs):
+        for i, action_key in enumerate(self.action_keys):
             row = i // 3
             col = i % 3
 
@@ -482,9 +521,9 @@ class GameInterface:
             )
 
             if button_rect.collidepoint(pos):
-                self.selected_action = action
-                context['selected_action'] = action
-                context['status'] = action
+                self.selected_action = action_key
+                context['selected_action'] = action_key
+                context['status'] = self.loc.get_action_name(action_key)
                 return True
 
         return False
@@ -604,3 +643,11 @@ class GameInterface:
     def toggle_inventory(self) -> None:
         """Toggle inventory visibility"""
         self.show_inventory = not self.show_inventory
+    
+    def _toggle_language(self) -> None:
+        """Toggle between available languages"""
+        current_lang = self.loc.current_language
+        if current_lang == 'fr':
+            self.loc.set_language('en')
+        else:
+            self.loc.set_language('fr')
